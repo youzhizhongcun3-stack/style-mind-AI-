@@ -1,0 +1,33 @@
+========================================
+  StyleMind AI - Claude API 起動手順
+  ジャービス作成 2026-06-17
+========================================
+
+【手順1】PowerShellを2つ開く
+
+■ PowerShell① (プロキシサーバー)
+以下を1行ずつ入力：
+
+$env:CLAUDE_API_KEY = "ここにAPIキーを貼り付ける"
+cd C:\Users\Yu-sh\stylemind_ai\proxy
+node server.js
+
+「StyleMind プロキシサーバー起動中: http://localhost:3000」
+と表示されたらOK。このウィンドウは閉じないこと！
+
+■ PowerShell② (Flutterアプリ)
+以下を1行ずつ入力：
+
+cd C:\Users\Yu-sh\stylemind_ai
+flutter run -d chrome
+
+
+【手順2】動作確認
+チャットに「デートコーデを教えて」と入力
+→ Claude AIが本物のファッションアドバイスを返答すれば成功！
+
+
+【APIキーの保管場所】
+C:\Users\Yu-sh\StyleMindAI\docs\api_keys_memo.txt
+
+========================================

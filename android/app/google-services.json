@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "285738266939",
+    "project_id": "stylemind-ai-d14ec",
+    "storage_bucket": "stylemind-ai-d14ec.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:285738266939:android:c2b2c981c3cbf26d0f471e",
+        "android_client_info": {
+          "package_name": "com.example.stylemind_ai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "285738266939-6erhge53lsdhepchr7nkfajk8itt4ads.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5cGZuK1-V8Ncc4QyfUPGg0p3Vu5UbJfA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "285738266939-6erhge53lsdhepchr7nkfajk8itt4ads.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,7 +1,7 @@
 const http = require('http');
 const https = require('https');
+require('dotenv').config();
 
-// APIキーは環境変数で管理（起動時に設定）
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || '';
 
 const server = http.createServer((req, res) => {
@@ -21,14 +21,14 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       const { messages } = JSON.parse(body);
 
+      // 直近5件のみ送信（速度改善）
+      const recentMessages = messages.slice(-5);
+
       const payload = JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 1024,
-        system: `あなたはStyleMind AIというファッションスタイリストAIです。
-10〜20代の日本の若者向けに、おしゃれで親しみやすいコーデ提案をしてください。
-返答は日本語で、絵文字を適度に使い、読みやすく簡潔にまとめてください。
-具体的なアイテム名・ブランド・色・コーデの組み合わせを提案してください。`,
-        messages: messages,
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
+        system: `StyleMind AI：10〜20代向けファッションスタイリスト。現在は2026年。最新トレンド情報：2025〜2026年はミニマルシック・Y2Kリバイバル・ゴープコア・バレアコアが主流。ブランドはユニクロ・GU・ZARA・H&M・アーバンリサーチ・ビームス・ナイキ・ニューバランスが人気。カラーはアースカラー・モカブラウン・オフホワイト・バーントオレンジが旬。必ず3〜4行以内で簡潔に答える。日本語・絵文字1〜2個・具体的なアイテム名とブランドを1〜2個提案。長い説明は不要。`,
+        messages: recentMessages,
       });
 
       const options = {

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -139,6 +140,12 @@ class ChatMessage {
   ChatMessage({required this.text, required this.isUser});
 }
 
+class StreamingMessage {
+  String text;
+  final bool isUser;
+  StreamingMessage({required this.text, required this.isUser});
+}
+
 class ClaudeService {
   // プロキシサーバー経由でClaude APIを呼ぶ
   static const String _proxyUrl = 'http://localhost:3000/chat';
@@ -199,6 +206,20 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  Future<void> _saveToFirestore(String text, bool isUser) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('messages')
+        .add({
+      'text': text,
+      'isUser': isUser,
+      'timestamp': FieldValue.serverTimestamp(),
+    });
+  }
+
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
@@ -209,15 +230,30 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _controller.clear();
     _scrollToBottom();
+    await _saveToFirestore(text, true);
 
     final reply = await ClaudeService.sendMessage(
       _messages.where((m) => m.isUser || _messages.indexOf(m) > 0).toList(),
     );
 
+    // タイプライター風に文字を表示
     setState(() {
-      _messages.add(ChatMessage(text: reply, isUser: false));
+      _messages.add(ChatMessage(text: '', isUser: false));
       _isLoading = false;
     });
+
+    final int lastIndex = _messages.length - 1;
+    for (int i = 0; i < reply.length; i++) {
+      await Future.delayed(const Duration(milliseconds: 8));
+      setState(() {
+        _messages[lastIndex] = ChatMessage(
+          text: reply.substring(0, i + 1),
+          isUser: false,
+        );
+      });
+    }
+
+    await _saveToFirestore(reply, false);
     _scrollToBottom();
   }
 
@@ -226,11 +262,28 @@ class _ChatScreenState extends State<ChatScreen> {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF7FD6C2),
-        title: const Text(
-          'StyleMind AI',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: Column(
+          children: [
+            const Text(
+              'StyleMind AI',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            Text(
+              FirebaseAuth.instance.currentUser?.displayName ?? '',
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ],
         ),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            tooltip: 'ログアウト',
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -31,7 +33,6 @@ class StyleMindApp extends StatelessWidget {
   }
 }
 
-// ログイン状態を監視して画面を切り替える
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -137,18 +138,13 @@ class _LoginScreenState extends State<LoginScreen> {
 class ChatMessage {
   final String text;
   final bool isUser;
-  ChatMessage({required this.text, required this.isUser});
-}
-
-class StreamingMessage {
-  String text;
-  final bool isUser;
-  StreamingMessage({required this.text, required this.isUser});
+  final String? imageUrl;
+  ChatMessage({required this.text, required this.isUser, this.imageUrl});
 }
 
 class ClaudeService {
-  // プロキシサーバー経由でClaude APIを呼ぶ
   static const String _proxyUrl = 'http://localhost:3000/chat';
+  static const String _imageUrl = 'http://localhost:3000/generate-image';
 
   static Future<String> sendMessage(List<ChatMessage> messages) async {
     final List<Map<String, String>> history = messages.map((m) => {
@@ -171,6 +167,24 @@ class ClaudeService {
       }
     } catch (e) {
       return '接続エラー: サーバーが起動しているか確認してください。';
+    }
+  }
+
+  static Future<String?> generateImage(String prompt) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_imageUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'prompt': prompt}),
+      ).timeout(const Duration(seconds: 60));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        return data['imageUrl'] as String;
+      }
+      return null;
+    } catch (e) {
+      return null;
     }
   }
 }
@@ -236,7 +250,6 @@ class _ChatScreenState extends State<ChatScreen> {
       _messages.where((m) => m.isUser || _messages.indexOf(m) > 0).toList(),
     );
 
-    // タイプライター風に文字を表示
     setState(() {
       _messages.add(ChatMessage(text: '', isUser: false));
       _isLoading = false;
@@ -254,6 +267,31 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     await _saveToFirestore(reply, false);
+
+    // コーデ提案または画像リクエストの場合は自動で画像生成
+    final userText = text.toLowerCase();
+    final isImageRequest = userText.contains('画像') || userText.contains('写真') || userText.contains('見せ') || userText.contains('イメージ');
+    final isCoordRequest = reply.contains('コーデ') || reply.contains('スタイル') || reply.contains('コーディネート') || reply.contains('ニット') || reply.contains('シャツ') || reply.contains('パンツ') || reply.contains('スカート');
+
+    if (isCoordRequest || isImageRequest) {
+      setState(() {
+        _messages.add(ChatMessage(text: '👗 コーデ画像を生成中です...（約15秒かかります）', isUser: false));
+        _isLoading = true;
+      });
+      _scrollToBottom();
+
+      final imageUrl = await ClaudeService.generateImage(reply);
+      setState(() {
+        _isLoading = false;
+        if (imageUrl != null) {
+          _messages.last = ChatMessage(text: '👗 提案コーデのイメージ', isUser: false, imageUrl: imageUrl);
+        } else {
+          _messages.last = ChatMessage(text: '画像の生成に失敗しました。もう一度お試しください。', isUser: false);
+        }
+      });
+      _scrollToBottom();
+    }
+
     _scrollToBottom();
   }
 
@@ -324,7 +362,18 @@ class _ChatScreenState extends State<ChatScreen> {
                 final msg = _messages[index];
                 return Align(
                   alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
+                  child: GestureDetector(
+                    onLongPress: () {
+                      Clipboard.setData(ClipboardData(text: msg.text));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('コピーしました！'),
+                          duration: Duration(seconds: 1),
+                          backgroundColor: Color(0xFF7FD6C2),
+                        ),
+                      );
+                    },
+                    child: Container(
                     margin: const EdgeInsets.symmetric(vertical: 4),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     constraints: BoxConstraints(
@@ -334,13 +383,33 @@ class _ChatScreenState extends State<ChatScreen> {
                       color: msg.isUser ? const Color(0xFF7FD6C2) : Colors.grey[200],
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(
-                      msg.text,
-                      style: TextStyle(
-                        color: msg.isUser ? Colors.white : Colors.black87,
-                        fontSize: 15,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          msg.text,
+                          style: TextStyle(
+                            color: msg.isUser ? Colors.white : Colors.black87,
+                            fontSize: 15,
+                          ),
+                        ),
+                        if (msg.imageUrl != null) ...[
+                          const SizedBox(height: 8),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: Builder(builder: (context) {
+                              if (msg.imageUrl!.startsWith('data:image')) {
+                                final b64 = msg.imageUrl!.split(',').last;
+                                final Uint8List bytes = base64Decode(b64);
+                                return Image.memory(bytes, width: double.infinity, fit: BoxFit.cover);
+                              }
+                              return Image.network(msg.imageUrl!, width: double.infinity, fit: BoxFit.cover);
+                            }),
+                          ),
+                        ],
+                      ],
                     ),
+                  ),
                   ),
                 );
               },

@@ -21,13 +21,29 @@ const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
-      const { messages } = JSON.parse(body);
-      const recentMessages = messages.slice(-5);
+      const { messages, userProfile } = JSON.parse(body);
+      const recentMessages = messages.slice(-8);
+      const profileContext = userProfile ? `\n【ユーザー情報】性別:${userProfile.gender||'未設定'} 年齢:${userProfile.age||'未設定'} 好きなスタイル:${userProfile.styles||'未設定'} 好きなブランド:${userProfile.brands||'未設定'} 予算:${userProfile.budget||'未設定'}` : '';
 
       const payload = JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 300,
-        system: `StyleMind AI：10〜20代向けファッションスタイリスト。現在は2026年。最新トレンド情報：2025〜2026年はミニマルシック・Y2Kリバイバル・ゴープコア・バレアコアが主流。ブランドはユニクロ・GU・ZARA・H&M・アーバンリサーチ・ビームス・ナイキ・ニューバランスが人気。カラーはアースカラー・モカブラウン・オフホワイト・バーントオレンジが旬。必ず3〜4行以内で簡潔に答える。日本語・絵文字1〜2個・具体的なアイテム名とブランドを1〜2個提案。長い説明は不要。画像生成については「システムが自動で画像を生成します」と伝え、自分では生成できないとは絶対に言わない。`,
+        max_tokens: 400,
+        system: `あなたはStyleMind AI、感度の高いファッションスタイリスト。2026年現在の最新トレンドを熟知している。
+
+【2026年トレンド知識】
+・スタイル系統：ミニマルシック/Y2Kリバイバル/ゴープコア/バレアコア/クワイエットラグジュアリー/ストリート/モード/韓国系オルチャン/サブカル/フェミニン/マスキュリン/ジェンダーレス
+・人気ブランド（高感度）：アクネ ストゥディオズ/マルニ/トットペリー/ジルサンダー/メゾンマルジェラ/ステューシー/シュプリーム/パレス/アワーレガシー/コモンプロジェクト
+・人気ブランド（プチプラ〜ミドル）：ユニクロ/GU/ZARA/H&M/アーバンリサーチ/ビームス/シップス/ナノユニバース/マウジー/スナイデル/ジャーナルスタンダード
+・注目アイテム：バギーデニム/ローライズパンツ/オーバーサイズブレザー/カーゴパンツ/ニットベスト/プラットフォームシューズ/チャンキーローファー/ボアジャケット/レザートレンチ
+・カラートレンド：モカムース/バーントオレンジ/コバルトブルー/チェリーレッド/ピスタチオグリーン/オフホワイト/ミルクチョコ
+
+【返答ルール】
+- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}
+- 毎回異なるスタイル提案をする。同じ系統を繰り返さない
+- 具体的なブランド名・アイテム名を必ず含める
+- 季節・シーン・体型・予算に合わせて提案する
+- 3〜5行以内で簡潔に。絵文字1〜2個
+- ユーザーが「画像生成して」「画像を見たい」「見せて」と言ったら「画像を生成します！少々お待ちください🎨」とだけ答える。絶対に「画像生成はできない」「対応していない」「代わりの方法」などと言ってはいけない。代替手段（PinterestやInstagram等）を提案することも禁止。システムが自動で画像を生成する仕組みになっている`,
         messages: recentMessages,
       });
 
@@ -73,13 +89,24 @@ const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
-      const { prompt } = JSON.parse(body);
+      const { prompt, userProfile } = JSON.parse(body);
+
+      const gender = userProfile?.gender || '';
+      const age = userProfile?.age || '20代';
+      let modelDesc = '';
+      if (gender === 'メンズ') {
+        modelDesc = `Japanese male model, ${age}, short hair, masculine appearance, no leg hair, no body hair visible`;
+      } else if (gender === 'レディース') {
+        modelDesc = `Japanese female model, ${age}, feminine appearance`;
+      } else {
+        modelDesc = `Japanese model, ${age}, gender-neutral appearance`;
+      }
 
       const payload = JSON.stringify({
         model: 'gpt-image-1',
-        prompt: `ファッションコーディネート写真。${prompt}。自然な日本人モデル、全身、白背景、おしゃれ、リアルな写真風`,
+        prompt: `Professional fashion photography. ${prompt}. Full body shot from head to toe, shoes and footwear must be clearly visible at the bottom of the frame. ${modelDesc}, natural pose, standing on white studio background, realistic photo, high quality fashion magazine style, entire outfit including shoes fully shown, anatomically correct proportions, do not crop feet or shoes`,
         n: 1,
-        size: '1024x1024',
+        size: '1024x1536',
         quality: 'medium',
       });
 

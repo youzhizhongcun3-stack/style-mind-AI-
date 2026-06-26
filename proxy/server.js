@@ -21,9 +21,10 @@ const server = http.createServer((req, res) => {
     let body = '';
     req.on('data', chunk => { body += chunk; });
     req.on('end', () => {
-      const { messages, userProfile } = JSON.parse(body);
+      const { messages, userProfile, closetSummary } = JSON.parse(body);
       const recentMessages = messages.slice(-8);
       const profileContext = userProfile ? `\n【ユーザー情報】性別:${userProfile.gender||'未設定'} 年齢:${userProfile.age||'未設定'} 好きなスタイル:${userProfile.styles||'未設定'} 好きなブランド:${userProfile.brands||'未設定'} 予算:${userProfile.budget||'未設定'}` : '';
+      const closetContext = closetSummary ? `\n\n【ユーザーの手持ち服（クローゼット）】\n${closetSummary}\n※手持ち服を活用したコーデ提案を優先すること。新規購入アイテムを追加する場合は手持ち服と相性の良いものを提案すること` : '';
 
       const payload = JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
@@ -38,7 +39,7 @@ const server = http.createServer((req, res) => {
 ・カラートレンド：モカムース/バーントオレンジ/コバルトブルー/チェリーレッド/ピスタチオグリーン/オフホワイト/ミルクチョコ
 
 【返答ルール】
-- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}
+- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}
 - 毎回異なるスタイル提案をする。同じ系統を繰り返さない
 - 具体的なブランド名・アイテム名を必ず含める
 - 季節・シーン・体型・予算に合わせて提案する

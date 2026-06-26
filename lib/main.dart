@@ -11,6 +11,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
+import 'closet_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -344,7 +345,7 @@ class ClaudeService {
   static const String _proxyUrl = 'http://localhost:3000/chat';
   static const String _imageUrl = 'http://localhost:3000/generate-image';
 
-  static Future<String> sendMessage(List<ChatMessage> messages, {UserProfile? userProfile}) async {
+  static Future<String> sendMessage(List<ChatMessage> messages, {UserProfile? userProfile, String? closetSummary}) async {
     final List<Map<String, String>> history = messages.map((m) => {
       'role': m.isUser ? 'user' : 'assistant',
       'content': m.text,
@@ -357,6 +358,7 @@ class ClaudeService {
         body: jsonEncode({
           'messages': history,
           'userProfile': userProfile?.toMap(),
+          'closetSummary': closetSummary ?? '',
         }),
       );
 
@@ -481,9 +483,11 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
     await _saveToFirestore(text, true);
 
+    final closetSummary = await getClosetSummary();
     final reply = await ClaudeService.sendMessage(
       _messages.where((m) => m.isUser || _messages.indexOf(m) > 0).toList(),
       userProfile: widget.userProfile,
+      closetSummary: closetSummary,
     );
 
     setState(() {
@@ -549,6 +553,15 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.checkroom, color: Colors.white),
+            tooltip: 'クローゼット',
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const ClosetScreen(),
+              ));
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.tune, color: Colors.white),
             tooltip: 'スタイル設定',

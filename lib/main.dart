@@ -17,6 +17,8 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  // Web版でもログイン状態を永続化
+  await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
   runApp(const StyleMindApp());
 }
 
@@ -671,14 +673,15 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Row(
               children: [
                 Expanded(
-                  child: KeyboardListener(
-                    focusNode: FocusNode(),
-                    onKeyEvent: (event) {
+                  child: Focus(
+                    onKeyEvent: (node, event) {
                       if (event is KeyDownEvent &&
                           event.logicalKey == LogicalKeyboardKey.enter &&
                           !HardwareKeyboard.instance.isShiftPressed) {
                         if (!_isLoading) _sendMessage();
+                        return KeyEventResult.handled;
                       }
+                      return KeyEventResult.ignored;
                     },
                     child: TextField(
                       controller: _controller,

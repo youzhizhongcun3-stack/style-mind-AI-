@@ -2,6 +2,11 @@
 .env
 proxy/起動手順.txt
 
+# Node.js
+node_modules/
+proxy/node_modules/
+npm-debug.log*
+
 # Miscellaneous
 *.class
 *.log

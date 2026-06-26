@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -344,6 +345,23 @@ class ChatMessage {
 class ClaudeService {
   static const String _proxyUrl = 'http://localhost:3000/chat';
   static const String _imageUrl = 'http://localhost:3000/generate-image';
+  static const String _weatherUrl = 'http://localhost:3000/weather';
+
+  static Future<Map<String, dynamic>?> getWeather(double lat, double lon) async {
+    try {
+      final response = await http.post(
+        Uri.parse(_weatherUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'lat': lat, 'lon': lon}),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(utf8.decode(response.bodyBytes));
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  }
 
   static Future<String> sendMessage(List<ChatMessage> messages, {UserProfile? userProfile, String? closetSummary}) async {
     final List<Map<String, String>> history = messages.map((m) => {
@@ -471,6 +489,36 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  Future<void> _sendWeatherCoordinate() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('位置情報の許可が必要です')),
+          );
+          return;
+        }
+      }
+      final position = await Geolocator.getCurrentPosition();
+      final weather = await ClaudeService.getWeather(position.latitude, position.longitude);
+      if (weather == null) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('天気情報の取得に失敗しました')),
+        );
+        return;
+      }
+      final weatherText = '今日の天気は${weather['description']}、気温${weather['temp']}℃（体感${weather['feels_like']}℃）、湿度${weather['humidity']}%です。今日の天気と気温に合わせたコーデを提案してください。';
+      _controller.text = weatherText;
+      _sendMessage();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('エラー: $e')),
+      );
+    }
+  }
+
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
@@ -553,6 +601,11 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.wb_sunny, color: Colors.white),
+            tooltip: '今日の天気コーデ',
+            onPressed: () => _sendWeatherCoordinate(),
+          ),
           IconButton(
             icon: const Icon(Icons.checkroom, color: Colors.white),
             tooltip: 'クローゼット',

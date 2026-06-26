@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY || '';
 
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -156,6 +157,40 @@ const server = http.createServer((req, res) => {
 
       apiReq.write(payload);
       apiReq.end();
+    });
+
+  // 天気取得
+  } else if (req.method === 'POST' && req.url === '/weather') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      const { lat, lon } = JSON.parse(body);
+      const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=ja`;
+
+      https.get(url, (apiRes) => {
+        let data = '';
+        apiRes.on('data', chunk => { data += chunk; });
+        apiRes.on('end', () => {
+          try {
+            const parsed = JSON.parse(data);
+            const weather = {
+              temp: Math.round(parsed.main.temp),
+              feels_like: Math.round(parsed.main.feels_like),
+              description: parsed.weather[0].description,
+              city: parsed.name,
+              humidity: parsed.main.humidity,
+            };
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify(weather));
+          } catch (e) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: '天気取得失敗' }));
+          }
+        });
+      }).on('error', (e) => {
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: e.message }));
+      });
     });
 
   } else {

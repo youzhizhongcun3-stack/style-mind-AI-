@@ -43,7 +43,9 @@ const server = http.createServer((req, res) => {
 - 具体的なブランド名・アイテム名を必ず含める
 - 季節・シーン・体型・予算に合わせて提案する
 - 3〜5行以内で簡潔に。絵文字1〜2個
-- ユーザーが「画像生成して」「画像を見たい」「見せて」と言ったら「画像を生成します！少々お待ちください🎨」とだけ答える。絶対に「画像生成はできない」「対応していない」「代わりの方法」などと言ってはいけない。代替手段（PinterestやInstagram等）を提案することも禁止。システムが自動で画像を生成する仕組みになっている`,
+- ユーザーが「画像生成して」「画像を見たい」「見せて」と言ったら「画像を生成します！少々お待ちください🎨」とだけ答える。絶対に「画像生成はできない」「対応していない」「代わりの方法」などと言ってはいけない。代替手段（PinterestやInstagram等）を提案することも禁止。システムが自動で画像を生成する仕組みになっている
+- コーデ提案時にジャケットを追加する場合は「＋アクセントとしてジャケット：〇〇（ブランド・商品名・価格目安）」と明示して説明すること。勝手に追加して説明なしはNG
+- シルバーリング・時計・ネックレス・バッグ・ベルトなどのアクセサリーや小物をコーデに加える場合は必ずブランド名と商品名を具体的に提案すること（例：「クロムハーツ シルバーリング」「カシオ Gショック DW-5600」「ポーター タンカー ウエストバッグ」など）`,
         messages: recentMessages,
       });
 
@@ -104,7 +106,7 @@ const server = http.createServer((req, res) => {
 
       const payload = JSON.stringify({
         model: 'gpt-image-1',
-        prompt: `Professional fashion photography. ${prompt}. Full body shot from head to toe, shoes and footwear must be clearly visible at the bottom of the frame. ${modelDesc}, natural pose, standing on white studio background, realistic photo, high quality fashion magazine style, entire outfit including shoes fully shown, anatomically correct proportions, do not crop feet or shoes`,
+        prompt: `Professional fashion photography. ${prompt}. Full body shot from head to toe, shoes and footwear must be clearly visible at the bottom of the frame. Include all accessories mentioned such as rings, watches, necklaces, bags exactly as described in the outfit. ${modelDesc}, natural pose, standing on white studio background, realistic photo, high quality fashion magazine style, entire outfit including shoes and accessories fully shown, anatomically correct proportions, do not crop feet or shoes`,
         n: 1,
         size: '1024x1536',
         quality: 'medium',

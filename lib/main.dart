@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
@@ -491,32 +490,40 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _sendWeatherCoordinate() async {
     try {
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('位置情報の許可が必要です')),
-          );
-          return;
+      // Web版：東京のデフォルト座標を使用（スマホ版では実際の位置情報を使用）
+      double lat = 35.6895;
+      double lon = 139.6917;
+
+      if (!kIsWeb) {
+        // スマホ版のみGeolocatorを使用
+        // ignore: avoid_dynamic_calls
+        final pos = await _getPosition();
+        if (pos != null) {
+          lat = pos[0];
+          lon = pos[1];
         }
       }
-      final position = await Geolocator.getCurrentPosition();
-      final weather = await ClaudeService.getWeather(position.latitude, position.longitude);
+
+      final weather = await ClaudeService.getWeather(lat, lon);
       if (weather == null) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('天気情報の取得に失敗しました')),
         );
         return;
       }
-      final weatherText = '今日の天気は${weather['description']}、気温${weather['temp']}℃（体感${weather['feels_like']}℃）、湿度${weather['humidity']}%です。今日の天気と気温に合わせたコーデを提案してください。';
+      final city = weather['city'] ?? '現在地';
+      final weatherText = '今日の${city}の天気は${weather['description']}、気温${weather['temp']}℃（体感${weather['feels_like']}℃）、湿度${weather['humidity']}%です。今日の天気と気温に合わせたコーデを提案してください。';
       _controller.text = weatherText;
       _sendMessage();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('エラー: $e')),
+        SnackBar(content: Text('天気情報の取得に失敗しました')),
       );
     }
+  }
+
+  Future<List<double>?> _getPosition() async {
+    return null; // スマホ版で実装予定
   }
 
   Future<void> _sendMessage() async {

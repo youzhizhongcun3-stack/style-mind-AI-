@@ -12,6 +12,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'closet_screen.dart';
+import 'saved_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -455,6 +456,28 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  Future<void> _saveCoordinate(String text, String? imageUrl) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('saved_coordinates')
+        .add({
+      'text': text,
+      'imageUrl': imageUrl,
+      'savedAt': FieldValue.serverTimestamp(),
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('コーデを保存しました！'),
+          backgroundColor: Color(0xFF7FD6C2),
+        ),
+      );
+    }
+  }
+
   Future<void> _shareImage(String imageUrl) async {
     try {
       final Uint8List bytes;
@@ -609,6 +632,15 @@ class _ChatScreenState extends State<ChatScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.bookmark, color: Colors.white),
+            tooltip: '保存したコーデ',
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => const SavedScreen(),
+              ));
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.wb_sunny, color: Colors.white),
             tooltip: '今日の天気コーデ',
             onPressed: () => _sendWeatherCoordinate(),
@@ -710,6 +742,17 @@ class _ChatScreenState extends State<ChatScreen> {
                             fontSize: 15,
                           ),
                         ),
+                        if (!msg.isUser && msg.imageUrl == null && msg.text.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: () => _saveCoordinate(msg.text, null),
+                              icon: const Icon(Icons.bookmark_border, size: 16, color: Color(0xFF7FD6C2)),
+                              label: const Text('保存', style: TextStyle(color: Color(0xFF7FD6C2), fontSize: 12)),
+                            ),
+                          ),
+                        ],
                         if (msg.imageUrl != null) ...[
                           const SizedBox(height: 8),
                           ClipRRect(
@@ -724,13 +767,20 @@ class _ChatScreenState extends State<ChatScreen> {
                             }),
                           ),
                           const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () => _shareImage(msg.imageUrl!),
-                              icon: const Icon(Icons.share, size: 18, color: Color(0xFF7FD6C2)),
-                              label: const Text('共有', style: TextStyle(color: Color(0xFF7FD6C2))),
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton.icon(
+                                onPressed: () => _saveCoordinate(msg.text, msg.imageUrl),
+                                icon: const Icon(Icons.bookmark_border, size: 18, color: Color(0xFF7FD6C2)),
+                                label: const Text('保存', style: TextStyle(color: Color(0xFF7FD6C2))),
+                              ),
+                              TextButton.icon(
+                                onPressed: () => _shareImage(msg.imageUrl!),
+                                icon: const Icon(Icons.share, size: 18, color: Color(0xFF7FD6C2)),
+                                label: const Text('共有', style: TextStyle(color: Color(0xFF7FD6C2))),
+                              ),
+                            ],
                           ),
                         ],
                       ],

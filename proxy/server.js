@@ -25,7 +25,14 @@ const server = http.createServer((req, res) => {
       const { messages, userProfile, closetSummary } = JSON.parse(body);
       const recentMessages = messages.slice(-8);
       const ngContext = userProfile?.ngItems ? `\n【NGアイテム・絶対に提案禁止】${userProfile.ngItems}` : '';
+      const now = new Date();
+      const month = now.getMonth() + 1;
+      const season = month >= 3 && month <= 5 ? '春（3〜5月）軽めのアウター、トレンチコート、パステルカラー向き' :
+                    month >= 6 && month <= 8 ? '夏（6〜8月）半袖・薄手素材・リネン・涼しいコーデ向き' :
+                    month >= 9 && month <= 11 ? '秋（9〜11月）レイヤード・秋色・ニット・チェック向き' :
+                    '冬（12〜2月）ダウン・厚手コート・ウール・防寒コーデ向き';
       const profileContext = userProfile ? `\n【ユーザー情報】性別:${userProfile.gender||'未設定'} 年齢:${userProfile.age||'未設定'} 身長:${userProfile.height||'未設定'} 体型:${userProfile.bodyType||'未設定'} 好きなスタイル:${userProfile.styles||'未設定'} 好きなブランド:${userProfile.brands||'未設定'} 予算:${userProfile.budget||'未設定'}${ngContext}` : '';
+      const seasonContext = `\n【現在の季節】${season} ※季節に合わせたアイテム・素材を必ず提案すること`;
       const closetContext = closetSummary ? `\n\n【ユーザーの手持ち服（クローゼット）】\n${closetSummary}\n※手持ち服を活用したコーデ提案を優先すること。新規購入アイテムを追加する場合は手持ち服と相性の良いものを提案すること` : '';
 
       const payload = JSON.stringify({
@@ -70,9 +77,10 @@ const server = http.createServer((req, res) => {
 ・カラートレンド：モカムース/バーントオレンジ/コバルトブルー/チェリーレッド/ピスタチオグリーン/オフホワイト/ミルクチョコ
 
 【返答ルール】
-- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}
+- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}${seasonContext}
 - NGアイテムが設定されている場合は絶対に提案しない。NGアイテムの代替を提案すること
 - 体型・身長に合わせたシルエット提案をする。例：小柄→クロップドパンツ/ハイウエスト推奨、がっちり→オーバーサイズで体型カバー、細身→レイヤードで立体感を出す
+- 季節に合わない素材やアイテムは提案しない（例：夏にダウンジャケットは不可）
 - 毎回異なるスタイル提案をする。同じ系統を繰り返さない
 - 具体的なブランド名・アイテム名を必ず含める
 - 季節・シーン・体型・予算に合わせて提案する

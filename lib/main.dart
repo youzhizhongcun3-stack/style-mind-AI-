@@ -278,93 +278,166 @@ class _ProfileScreenState extends State<ProfileScreen> {
     widget.onComplete(profile);
   }
 
+  int _step = 0;
+
+  static const _steps = [
+    '性別を教えてください',
+    '年齢層を教えてください',
+    '好きなスタイルは？',
+    '好きなブランドは？',
+    '1コーデの予算は？',
+    '身長を教えてください',
+    '体型を教えてください',
+    'NGアイテムはありますか？',
+  ];
+
+  bool get _canProceed {
+    switch (_step) {
+      case 0: return _gender.isNotEmpty;
+      case 1: return _age.isNotEmpty;
+      case 2: return _selectedStyles.isNotEmpty;
+      case 4: return _budget.isNotEmpty;
+      default: return true;
+    }
+  }
+
+  Widget _buildStepContent() {
+    switch (_step) {
+      case 0:
+        return _chipGroup(['メンズ', 'レディース', 'ユニセックス'], _gender, (v) => setState(() => _gender = v));
+      case 1:
+        return _chipGroup(['10代', '20代前半', '20代後半', '30代', '40代以上'], _age, (v) => setState(() => _age = v));
+      case 2:
+        return _multiChipGroup(_styleOptions, _selectedStyles);
+      case 3:
+        return _multiChipGroup(_brandOptions, _selectedBrands);
+      case 4:
+        return _chipGroup(_budgetOptions, _budget, (v) => setState(() => _budget = v));
+      case 5:
+        return _chipGroup(_heightOptions, _height, (v) => setState(() => _height = v));
+      case 6:
+        return _chipGroup(_bodyTypeOptions, _bodyType, (v) => setState(() => _bodyType = v));
+      case 7:
+        return _multiChipGroup(_ngItemOptions, _selectedNgItems, color: Colors.red[100]!);
+      default:
+        return const SizedBox();
+    }
+  }
+
+  Widget _chipGroup(List<String> options, String selected, void Function(String) onSelect) {
+    return Wrap(
+      spacing: 10, runSpacing: 10,
+      children: options.map((o) => GestureDetector(
+        onTap: () => onSelect(o),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          decoration: BoxDecoration(
+            color: selected == o ? const Color(0xFF7FD6C2) : Colors.grey.shade100,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(color: selected == o ? const Color(0xFF7FD6C2) : Colors.grey.shade300),
+          ),
+          child: Text(o, style: TextStyle(color: selected == o ? Colors.white : Colors.black87, fontWeight: selected == o ? FontWeight.bold : FontWeight.normal)),
+        ),
+      )).toList(),
+    );
+  }
+
+  Widget _multiChipGroup(List<String> options, List<String> selected, {Color color = const Color(0xFF7FD6C2)}) {
+    return Wrap(
+      spacing: 10, runSpacing: 10,
+      children: options.map((o) {
+        final isSelected = selected.contains(o);
+        return GestureDetector(
+          onTap: () => setState(() => isSelected ? selected.remove(o) : selected.add(o)),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected ? color : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: isSelected ? color : Colors.grey.shade300),
+            ),
+            child: Text(o, style: TextStyle(color: isSelected ? (color == Colors.red[100] ? Colors.red[800]! : Colors.white) : Colors.black87, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, fontSize: 13)),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final totalSteps = _steps.length;
+    final progress = (_step + 1) / totalSteps;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: const Color(0xFF7FD6C2),
         title: const Text('スタイル診断', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
+        leading: _step > 0 ? IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+          onPressed: () => setState(() => _step--),
+        ) : null,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+      body: Padding(
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('あなたのファッションを教えてください✨', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 20),
-            _sectionTitle('性別'),
-            Wrap(spacing: 8, children: ['メンズ', 'レディース', 'ユニセックス'].map((g) => ChoiceChip(
-              label: Text(g), selected: _gender == g,
-              onSelected: (_) => setState(() => _gender = g),
-              selectedColor: const Color(0xFF7FD6C2),
-            )).toList()),
-            const SizedBox(height: 16),
-            _sectionTitle('年齢層'),
-            Wrap(spacing: 8, children: ['10代', '20代前半', '20代後半', '30代', '40代以上'].map((a) => ChoiceChip(
-              label: Text(a), selected: _age == a,
-              onSelected: (_) => setState(() => _age = a),
-              selectedColor: const Color(0xFF7FD6C2),
-            )).toList()),
-            const SizedBox(height: 16),
-            _sectionTitle('好きなスタイル（複数選択OK）'),
-            Wrap(spacing: 8, runSpacing: 4, children: _styleOptions.map((s) => FilterChip(
-              label: Text(s, style: const TextStyle(fontSize: 12)),
-              selected: _selectedStyles.contains(s),
-              onSelected: (v) => setState(() => v ? _selectedStyles.add(s) : _selectedStyles.remove(s)),
-              selectedColor: const Color(0xFF7FD6C2),
-            )).toList()),
-            const SizedBox(height: 16),
-            _sectionTitle('好きなブランド（複数選択OK）'),
-            Wrap(spacing: 8, runSpacing: 4, children: _brandOptions.map((b) => FilterChip(
-              label: Text(b, style: const TextStyle(fontSize: 12)),
-              selected: _selectedBrands.contains(b),
-              onSelected: (v) => setState(() => v ? _selectedBrands.add(b) : _selectedBrands.remove(b)),
-              selectedColor: const Color(0xFF7FD6C2),
-            )).toList()),
-            const SizedBox(height: 16),
-            _sectionTitle('1コーデの予算'),
-            Wrap(spacing: 8, children: _budgetOptions.map((b) => ChoiceChip(
-              label: Text(b), selected: _budget == b,
-              onSelected: (_) => setState(() => _budget = b),
-              selectedColor: const Color(0xFF7FD6C2),
-            )).toList()),
-            const SizedBox(height: 16),
-            _sectionTitle('身長'),
-            Wrap(spacing: 8, runSpacing: 4, children: _heightOptions.map((h) => ChoiceChip(
-              label: Text(h, style: const TextStyle(fontSize: 12)), selected: _height == h,
-              onSelected: (_) => setState(() => _height = h),
-              selectedColor: const Color(0xFF7FD6C2),
-            )).toList()),
-            const SizedBox(height: 16),
-            _sectionTitle('体型'),
-            Wrap(spacing: 8, runSpacing: 4, children: _bodyTypeOptions.map((b) => ChoiceChip(
-              label: Text(b, style: const TextStyle(fontSize: 12)), selected: _bodyType == b,
-              onSelected: (_) => setState(() => _bodyType = b),
-              selectedColor: const Color(0xFF7FD6C2),
-            )).toList()),
-            const SizedBox(height: 16),
-            _sectionTitle('NGアイテム（着たくないもの）'),
-            Wrap(spacing: 8, runSpacing: 4, children: _ngItemOptions.map((n) => FilterChip(
-              label: Text(n, style: const TextStyle(fontSize: 12)),
-              selected: _selectedNgItems.contains(n),
-              onSelected: (v) => setState(() => v ? _selectedNgItems.add(n) : _selectedNgItems.remove(n)),
-              selectedColor: Colors.red[100],
-            )).toList()),
+            // プログレスバー
+            Row(
+              children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: const AlwaysStoppedAnimation(Color(0xFF7FD6C2)),
+                      minHeight: 6,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text('${_step + 1} / $totalSteps', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
             const SizedBox(height: 32),
+            Text('Q${_step + 1}', style: const TextStyle(color: Color(0xFF7FD6C2), fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 8),
+            Text(_steps[_step], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+            if (_step == 2 || _step == 3 || _step == 7)
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text('複数選択OK', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              ),
+            const SizedBox(height: 32),
+            Expanded(child: SingleChildScrollView(child: _buildStepContent())),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: (_gender.isEmpty || _selectedStyles.isEmpty || _saving) ? null : _save,
+                onPressed: (!_canProceed || _saving) ? null : () {
+                  if (_step < totalSteps - 1) {
+                    setState(() => _step++);
+                  } else {
+                    _save();
+                  }
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF7FD6C2),
+                  disabledBackgroundColor: Colors.grey.shade200,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                 ),
                 child: _saving
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('スタイル診断完了！', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    : Text(
+                        _step < totalSteps - 1 ? '次へ →' : '診断完了！',
+                        style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
           ],
@@ -372,11 +445,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
     );
   }
-
-  Widget _sectionTitle(String title) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF7FD6C2))),
-  );
 }
 
 class _ImageGeneratingCard extends StatefulWidget {
@@ -593,7 +661,8 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
-  String? _lastOutfitReply; // 最新のコーデ提案テキストを記憶
+  String? _lastOutfitReply;
+  String? _selectedScene;
 
   static const String _welcomeMessage = 'こんにちは！私はStyleMind AIです👗\nどんなコーデの相談でもOKですよ！\n\n例えば：\n・デートに着ていく服を教えて\n・就活スーツに合うシャツは？\n・今日の気分はカジュアルに！\n\n⚠️ 画像生成について\nAIが生成するコーデ画像は「雰囲気のイメージ」です。著作権・商標の関係上、ブランドロゴやマークは表示されません。実際の商品は「購入」ボタンからご確認ください。';
 
@@ -1039,13 +1108,26 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  static const _scenes = [
+    {'label': '📅 普段着', 'prompt': '普段のカジュアルなコーデ'},
+    {'label': '💼 仕事', 'prompt': 'オフィス・仕事向けのきれいめコーデ'},
+    {'label': '💕 デート', 'prompt': 'デート向けのおしゃれなコーデ'},
+    {'label': '🎉 お出かけ', 'prompt': 'お出かけ・買い物向けのコーデ'},
+    {'label': '⚽ スポーツ', 'prompt': 'スポーツ・アクティブなコーデ'},
+    {'label': '🌙 夜・パーティ', 'prompt': '夜のお出かけ・パーティ向けのコーデ'},
+  ];
+
   Future<void> _sendMessage() async {
-    final text = _controller.text.trim();
+    final rawText = _controller.text.trim();
+    final text = (_selectedScene != null && rawText.isEmpty)
+        ? _selectedScene!
+        : rawText;
     if (text.isEmpty || _isLoading) return;
 
     setState(() {
       _messages.add(ChatMessage(text: text, isUser: true));
       _isLoading = true;
+      _selectedScene = null;
     });
     _controller.clear();
     _scrollToBottom();
@@ -1368,6 +1450,46 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
+          // シーン選択チップ
+          Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _scenes.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) {
+                final scene = _scenes[i];
+                final selected = _selectedScene == scene['prompt'];
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedScene = selected ? null : scene['prompt'];
+                      if (!selected) _controller.clear();
+                    });
+                  },
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: selected ? const Color(0xFF7FD6C2) : Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: selected ? const Color(0xFF7FD6C2) : Colors.grey.shade300),
+                    ),
+                    child: Text(
+                      scene['label']!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: selected ? Colors.white : Colors.black87,
+                        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 4),
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -1390,7 +1512,9 @@ class _ChatScreenState extends State<ChatScreen> {
                       keyboardType: TextInputType.multiline,
                       textInputAction: TextInputAction.newline,
                       decoration: InputDecoration(
-                        hintText: 'コーデの相談をしてみよう...\n(Shift+Enterで改行)',
+                        hintText: _selectedScene != null
+                            ? '$_selectedScene\n(送信ボタンでこのシーンのコーデを提案)'
+                            : 'コーデの相談をしてみよう...\n(Shift+Enterで改行)',
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                         ),

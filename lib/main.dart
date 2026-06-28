@@ -552,12 +552,49 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isLoading = false;
   String? _lastOutfitReply; // 最新のコーデ提案テキストを記憶
 
+  static const String _welcomeMessage = 'こんにちは！私はStyleMind AIです👗\nどんなコーデの相談でもOKですよ！\n\n例えば：\n・デートに着ていく服を教えて\n・就活スーツに合うシャツは？\n・今日の気分はカジュアルに！\n\n⚠️ 画像生成について\nAIが生成するコーデ画像は「雰囲気のイメージ」です。著作権・商標の関係上、ブランドロゴやマークは表示されません。実際の商品は「購入」ボタンからご確認ください。';
+
   final List<ChatMessage> _messages = [
-    ChatMessage(
-      text: 'こんにちは！私はStyleMind AIです👗\nどんなコーデの相談でもOKですよ！\n\n例えば：\n・デートに着ていく服を教えて\n・就活スーツに合うシャツは？\n・今日の気分はカジュアルに！\n\n⚠️ 画像生成について\nAIが生成するコーデ画像は「雰囲気のイメージ」です。著作権・商標の関係上、ブランドロゴやマークは表示されません。実際の商品は「購入」ボタンからご確認ください。',
-      isUser: false,
-    ),
+    ChatMessage(text: _welcomeMessage, isUser: false),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChatHistory();
+  }
+
+  Future<void> _loadChatHistory() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .collection('messages')
+          .orderBy('timestamp', descending: false)
+          .limitToLast(50)
+          .get();
+      if (snapshot.docs.isEmpty) return;
+      final loaded = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return ChatMessage(
+          text: data['text'] as String? ?? '',
+          isUser: data['isUser'] as bool? ?? false,
+          imageUrl: data['imageUrl'] as String?,
+        );
+      }).toList();
+      if (mounted) {
+        setState(() {
+          _messages.clear();
+          _messages.add(ChatMessage(text: _welcomeMessage, isUser: false));
+          _messages.addAll(loaded);
+          _historyLoaded = true;
+        });
+        _scrollToBottom();
+      }
+    } catch (_) {}
+  }
 
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
@@ -571,18 +608,20 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  Future<void> _saveToFirestore(String text, bool isUser) async {
+  Future<void> _saveToFirestore(String text, bool isUser, {String? imageUrl}) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+    final data = {
+      'text': text,
+      'isUser': isUser,
+      'timestamp': FieldValue.serverTimestamp(),
+    };
+    if (imageUrl != null) data['imageUrl'] = imageUrl;
     await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .collection('messages')
-        .add({
-      'text': text,
-      'isUser': isUser,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+        .add(data);
   }
 
   Future<void> _saveCoordinate(String text, String? imageUrl) async {
@@ -984,8 +1023,10 @@ class _ChatScreenState extends State<ChatScreen> {
         _isLoading = false;
         if (imageUrl != null) {
           _messages.last = ChatMessage(text: '👗 提案コーデのイメージ', isUser: false, imageUrl: imageUrl);
+          _saveToFirestore('👗 提案コーデのイメージ', false, imageUrl: imageUrl);
           if (tip != null && tip.isNotEmpty) {
             _messages.add(ChatMessage(text: '💡 スタイリングTips\n$tip', isUser: false));
+            _saveToFirestore('💡 スタイリングTips\n$tip', false);
           }
         } else {
           _messages.last = ChatMessage(text: '画像の生成に失敗しました。もう一度お試しください。', isUser: false);

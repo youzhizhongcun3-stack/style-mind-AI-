@@ -24,12 +24,13 @@ const server = http.createServer((req, res) => {
     req.on('end', () => {
       const { messages, userProfile, closetSummary } = JSON.parse(body);
       const recentMessages = messages.slice(-8);
-      const profileContext = userProfile ? `\n【ユーザー情報】性別:${userProfile.gender||'未設定'} 年齢:${userProfile.age||'未設定'} 好きなスタイル:${userProfile.styles||'未設定'} 好きなブランド:${userProfile.brands||'未設定'} 予算:${userProfile.budget||'未設定'}` : '';
+      const ngContext = userProfile?.ngItems ? `\n【NGアイテム・絶対に提案禁止】${userProfile.ngItems}` : '';
+      const profileContext = userProfile ? `\n【ユーザー情報】性別:${userProfile.gender||'未設定'} 年齢:${userProfile.age||'未設定'} 身長:${userProfile.height||'未設定'} 体型:${userProfile.bodyType||'未設定'} 好きなスタイル:${userProfile.styles||'未設定'} 好きなブランド:${userProfile.brands||'未設定'} 予算:${userProfile.budget||'未設定'}${ngContext}` : '';
       const closetContext = closetSummary ? `\n\n【ユーザーの手持ち服（クローゼット）】\n${closetSummary}\n※手持ち服を活用したコーデ提案を優先すること。新規購入アイテムを追加する場合は手持ち服と相性の良いものを提案すること` : '';
 
       const payload = JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
+        max_tokens: 600,
         system: `あなたはStyleMind AI、感度の高いファッションスタイリスト。2026年現在の最新トレンドを熟知している。
 
 【ブランド・アイテム詳細知識】
@@ -70,6 +71,8 @@ const server = http.createServer((req, res) => {
 
 【返答ルール】
 - ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}
+- NGアイテムが設定されている場合は絶対に提案しない。NGアイテムの代替を提案すること
+- 体型・身長に合わせたシルエット提案をする。例：小柄→クロップドパンツ/ハイウエスト推奨、がっちり→オーバーサイズで体型カバー、細身→レイヤードで立体感を出す
 - 毎回異なるスタイル提案をする。同じ系統を繰り返さない
 - 具体的なブランド名・アイテム名を必ず含める
 - 季節・シーン・体型・予算に合わせて提案する
@@ -129,13 +132,32 @@ const server = http.createServer((req, res) => {
 
       const gender = userProfile?.gender || '';
       const age = userProfile?.age || '20代';
+      const bodyType = userProfile?.bodyType || '';
+      const height = userProfile?.height || '';
+
+      let heightDesc = '';
+      if (height.includes('〜160')) heightDesc = 'petite short stature around 155cm';
+      else if (height.includes('161')) heightDesc = 'average height around 163cm';
+      else if (height.includes('166')) heightDesc = 'average height around 168cm';
+      else if (height.includes('171')) heightDesc = 'tall around 173cm';
+      else if (height.includes('176')) heightDesc = 'tall around 178cm';
+      else if (height.includes('181')) heightDesc = 'very tall around 183cm';
+
+      let bodyDesc = '';
+      if (bodyType.includes('細身')) bodyDesc = 'slim slender build';
+      else if (bodyType.includes('がっちり')) bodyDesc = 'athletic muscular build';
+      else if (bodyType.includes('ぽっちゃり')) bodyDesc = 'slightly chubby round build';
+      else if (bodyType.includes('高身長')) bodyDesc = 'tall lean build';
+      else if (bodyType.includes('小柄')) bodyDesc = 'petite compact build';
+      else bodyDesc = 'average build';
+
       let modelDesc = '';
       if (gender === 'メンズ') {
-        modelDesc = `Japanese male model, ${age}, short hair, masculine appearance, no leg hair, no body hair visible`;
+        modelDesc = `Japanese male model, ${age}, ${heightDesc}, ${bodyDesc}, short hair, masculine appearance, no leg hair, no body hair visible`;
       } else if (gender === 'レディース') {
-        modelDesc = `Japanese female model, ${age}, feminine appearance`;
+        modelDesc = `Japanese female model, ${age}, ${heightDesc}, ${bodyDesc}, feminine appearance`;
       } else {
-        modelDesc = `Japanese model, ${age}, gender-neutral appearance`;
+        modelDesc = `Japanese model, ${age}, ${heightDesc}, ${bodyDesc}, gender-neutral appearance`;
       }
 
       // Step1: チャットテキストからアイテムをパース

@@ -150,6 +150,9 @@ class UserProfile {
   List<String> styles;
   List<String> brands;
   String budget;
+  String height;
+  String bodyType;
+  List<String> ngItems;
 
   UserProfile({
     this.gender = '',
@@ -157,6 +160,9 @@ class UserProfile {
     this.styles = const [],
     this.brands = const [],
     this.budget = '',
+    this.height = '',
+    this.bodyType = '',
+    this.ngItems = const [],
   });
 
   Map<String, String> toMap() => {
@@ -165,6 +171,9 @@ class UserProfile {
     'styles': styles.join('・'),
     'brands': brands.join('・'),
     'budget': budget,
+    'height': height,
+    'bodyType': bodyType,
+    'ngItems': ngItems.join('・'),
   };
 
   bool get isComplete => gender.isNotEmpty && styles.isNotEmpty;
@@ -199,6 +208,9 @@ class _ProfileGateState extends State<ProfileGate> {
           styles: List<String>.from(p['styles'] ?? []),
           brands: List<String>.from(p['brands'] ?? []),
           budget: p['budget'] ?? '',
+          height: p['height'] ?? '',
+          bodyType: p['bodyType'] ?? '',
+          ngItems: List<String>.from(p['ngItems'] ?? []),
         );
         _checked = true;
       });
@@ -232,11 +244,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final List<String> _selectedStyles = [];
   final List<String> _selectedBrands = [];
   String _budget = '';
+  String _height = '';
+  String _bodyType = '';
+  final List<String> _selectedNgItems = [];
   bool _saving = false;
 
   final List<String> _styleOptions = ['ミニマル/シンプル', 'ストリート', 'Y2K/レトロ', 'ゴープコア/アウトドア', 'フェミニン/ガーリー', 'クワイエットラグジュアリー', '韓国系/オルチャン', 'モード/アバンギャルド', 'カジュアル/アメカジ', 'サブカル/古着'];
   final List<String> _brandOptions = ['ユニクロ', 'GU', 'ZARA', 'H&M', 'ビームス', 'ナノユニバース', 'アーバンリサーチ', 'シュプリーム', 'ナイキ', 'ニューバランス', 'マルニ', 'アクネ', 'マルジェラ', 'その他'];
   final List<String> _budgetOptions = ['〜5,000円', '5,000〜15,000円', '15,000〜30,000円', '30,000円〜'];
+  final List<String> _heightOptions = ['〜160cm', '161〜165cm', '166〜170cm', '171〜175cm', '176〜180cm', '181cm〜'];
+  final List<String> _bodyTypeOptions = ['細身/スリム', '標準', 'がっちり/筋肉質', 'ぽっちゃり', '高身長', '小柄'];
+  final List<String> _ngItemOptions = ['ショートパンツ', 'タンクトップ', 'スキニーパンツ', 'ハイヒール', 'ピンク系', '柄物', 'ロゴ多め', '露出多め'];
 
   Future<void> _save() async {
     if (_gender.isEmpty || _selectedStyles.isEmpty) return;
@@ -250,10 +268,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'styles': _selectedStyles,
           'brands': _selectedBrands,
           'budget': _budget,
+          'height': _height,
+          'bodyType': _bodyType,
+          'ngItems': _selectedNgItems,
         }
       }, SetOptions(merge: true));
     }
-    final profile = UserProfile(gender: _gender, age: _age, styles: _selectedStyles, brands: _selectedBrands, budget: _budget);
+    final profile = UserProfile(gender: _gender, age: _age, styles: _selectedStyles, brands: _selectedBrands, budget: _budget, height: _height, bodyType: _bodyType, ngItems: _selectedNgItems);
     widget.onComplete(profile);
   }
 
@@ -308,6 +329,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
               label: Text(b), selected: _budget == b,
               onSelected: (_) => setState(() => _budget = b),
               selectedColor: const Color(0xFF7FD6C2),
+            )).toList()),
+            const SizedBox(height: 16),
+            _sectionTitle('身長'),
+            Wrap(spacing: 8, runSpacing: 4, children: _heightOptions.map((h) => ChoiceChip(
+              label: Text(h, style: const TextStyle(fontSize: 12)), selected: _height == h,
+              onSelected: (_) => setState(() => _height = h),
+              selectedColor: const Color(0xFF7FD6C2),
+            )).toList()),
+            const SizedBox(height: 16),
+            _sectionTitle('体型'),
+            Wrap(spacing: 8, runSpacing: 4, children: _bodyTypeOptions.map((b) => ChoiceChip(
+              label: Text(b, style: const TextStyle(fontSize: 12)), selected: _bodyType == b,
+              onSelected: (_) => setState(() => _bodyType = b),
+              selectedColor: const Color(0xFF7FD6C2),
+            )).toList()),
+            const SizedBox(height: 16),
+            _sectionTitle('NGアイテム（着たくないもの）'),
+            Wrap(spacing: 8, runSpacing: 4, children: _ngItemOptions.map((n) => FilterChip(
+              label: Text(n, style: const TextStyle(fontSize: 12)),
+              selected: _selectedNgItems.contains(n),
+              onSelected: (v) => setState(() => v ? _selectedNgItems.add(n) : _selectedNgItems.remove(n)),
+              selectedColor: Colors.red[100],
             )).toList()),
             const SizedBox(height: 32),
             SizedBox(

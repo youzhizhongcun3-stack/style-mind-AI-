@@ -440,6 +440,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
               ),
             ),
+            // Q4以降はスキップ可能
+            if (_step >= 3 && _step < totalSteps - 1)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () {
+                      if (_step < totalSteps - 1) setState(() => _step++);
+                    },
+                    child: const Text('スキップ →', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1236,6 +1250,39 @@ class _ChatScreenState extends State<ChatScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh, color: Colors.white),
+            tooltip: 'チャットをリセット',
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text('チャットをリセット'),
+                  content: const Text('チャット履歴をすべて削除しますか？\n保存したコーデは残ります。'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('キャンセル')),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                      child: const Text('削除する', style: TextStyle(color: Colors.white)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed != true || !mounted) return;
+              final uid = FirebaseAuth.instance.currentUser?.uid;
+              if (uid != null) {
+                final snap = await FirebaseFirestore.instance.collection('users').doc(uid).collection('messages').get();
+                for (final doc in snap.docs) { await doc.reference.delete(); }
+              }
+              setState(() {
+                _messages.clear();
+                _messages.add(ChatMessage(text: _welcomeMessage, isUser: false));
+                _lastOutfitReply = null;
+                _selectedScene = null;
+              });
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.bookmark, color: Colors.white),
             tooltip: '保存したコーデ',
             onPressed: () {
@@ -1450,6 +1497,40 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
+          // クイックリプライボタン（コーデ提案後に表示）
+          if (_lastOutfitReply != null)
+            Container(
+              height: 36,
+              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  {'label': '🔄 別の提案', 'text': '違うスタイルでもう一度提案してください'},
+                  {'label': '👕 もっとカジュアルに', 'text': 'もっとカジュアルなコーデに変えてください'},
+                  {'label': '✨ もっときれいめに', 'text': 'もっときれいめ・上品なコーデに変えてください'},
+                  {'label': '💰 節約版', 'text': '同じスタイルでもっとリーズナブルな予算のコーデを提案してください'},
+                  {'label': '🖼️ 画像生成', 'text': 'このコーデの画像を生成してください'},
+                ].map((q) => Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: GestureDetector(
+                    onTap: () {
+                      _controller.text = q['text']!;
+                      _sendMessage();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F8F5),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: const Color(0xFF7FD6C2)),
+                      ),
+                      child: Text(q['label']!, style: const TextStyle(fontSize: 12, color: Color(0xFF5BB8A8), fontWeight: FontWeight.w500)),
+                    ),
+                  ),
+                )).toList(),
+              ),
+            ),
           // シーン選択チップ
           Container(
             height: 40,

@@ -562,6 +562,60 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _loadChatHistory();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _showDisclaimerIfNeeded());
+  }
+
+  Future<void> _showDisclaimerIfNeeded() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
+    if (doc.data()?['disclaimerShown'] == true) return;
+    if (!mounted) return;
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(children: [
+          Text('⚠️ ', style: TextStyle(fontSize: 20)),
+          Text('ご利用前にお読みください', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        ]),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('【画像生成について】', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5BB8A8))),
+              SizedBox(height: 6),
+              Text('AIが生成するコーデ画像は「雰囲気のイメージ」です。著作権・商標の関係上、以下の制限があります：', style: TextStyle(fontSize: 13)),
+              SizedBox(height: 8),
+              Text('• ブランドロゴ・マークは表示されません\n• 実際の商品デザインと異なる場合があります\n• 生成画像の商用利用はできません', style: TextStyle(fontSize: 13, height: 1.6)),
+              SizedBox(height: 12),
+              Text('【購入について】', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF5BB8A8))),
+              SizedBox(height: 6),
+              Text('実際の商品は「購入」ボタンから各ショッピングサイトでご確認ください。\n購入リンクにはアフィリエイトが含まれる場合があります。', style: TextStyle(fontSize: 13, height: 1.6)),
+            ],
+          ),
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                FirebaseFirestore.instance.collection('users').doc(uid).update({'disclaimerShown': true});
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7FD6C2),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('理解しました'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadChatHistory() async {
@@ -589,7 +643,6 @@ class _ChatScreenState extends State<ChatScreen> {
           _messages.clear();
           _messages.add(ChatMessage(text: _welcomeMessage, isUser: false));
           _messages.addAll(loaded);
-          _historyLoaded = true;
         });
         _scrollToBottom();
       }

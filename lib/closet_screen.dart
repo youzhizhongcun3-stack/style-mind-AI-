@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 class ClothingItem {
   final String id;
@@ -56,6 +60,8 @@ class _ClosetScreenState extends State<ClosetScreen> {
   final _colorController = TextEditingController();
   final _brandController = TextEditingController();
   bool _saving = false;
+  bool _analyzing = false;
+  Uint8List? _previewImage;
 
   String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
 
@@ -63,6 +69,60 @@ class _ClosetScreenState extends State<ClosetScreen> {
       .collection('users')
       .doc(_uid)
       .collection('closet');
+
+  Future<void> _pickAndAnalyzeImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 800);
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _previewImage = bytes;
+      _analyzing = true;
+    });
+
+    try {
+      final base64Image = base64Encode(bytes);
+      final response = await http.post(
+        Uri.parse('http://localhost:3000/analyze-clothing'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'imageBase64': base64Image}),
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        setState(() {
+          _selectedCategory = _mapCategory(data['category'] ?? 'トップス');
+          _colorController.text = data['color'] ?? '';
+          _brandController.text = data['brand'] ?? '';
+          _descController.text = data['description'] ?? '';
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('AIが服を認識しました！内容を確認して追加してください'), backgroundColor: Color(0xFF7FD6C2)),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('画像の解析に失敗しました。手動で入力してください')),
+        );
+      }
+    } finally {
+      setState(() => _analyzing = false);
+    }
+  }
+
+  String _mapCategory(String category) {
+    if (category.contains('トップス')) return 'トップス';
+    if (category.contains('ボトムス')) return 'ボトムス';
+    if (category.contains('アウター')) return 'アウター';
+    if (category.contains('シューズ')) return 'シューズ';
+    if (category.contains('バッグ')) return 'バッグ';
+    if (category.contains('アクセサリー')) return 'アクセサリー';
+    return 'その他';
+  }
 
   Future<void> _addItem() async {
     if (_descController.text.trim().isEmpty) return;
@@ -78,7 +138,10 @@ class _ClosetScreenState extends State<ClosetScreen> {
     _descController.clear();
     _colorController.clear();
     _brandController.clear();
-    setState(() => _saving = false);
+    setState(() {
+      _saving = false;
+      _previewImage = null;
+    });
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('クローゼットに追加しました！'), backgroundColor: Color(0xFF7FD6C2)),
@@ -100,14 +163,39 @@ class _ClosetScreenState extends State<ClosetScreen> {
       ),
       body: Column(
         children: [
-          // 追加フォーム
           Container(
             color: Colors.grey[50],
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('服を追加する', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7FD6C2))),
+                Row(
+                  children: [
+                    const Text('服を追加する', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF7FD6C2))),
+                    const Spacer(),
+                    ElevatedButton.icon(
+                      onPressed: _analyzing ? null : _pickAndAnalyzeImage,
+                      icon: _analyzing
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.camera_alt, size: 16),
+                      label: Text(_analyzing ? 'AI解析中...' : '写真から追加'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF7FD6C2),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        textStyle: const TextStyle(fontSize: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_previewImage != null) ...[
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.memory(_previewImage!, height: 100, fit: BoxFit.cover),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -126,30 +214,15 @@ class _ClosetScreenState extends State<ClosetScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _colorController,
-                        decoration: _inputDec('色（例：ネイビー）'),
-                      ),
-                    ),
+                    Expanded(child: TextField(controller: _colorController, decoration: _inputDec('色（例：ネイビー）'))),
                     const SizedBox(width: 8),
-                    Expanded(
-                      child: TextField(
-                        controller: _brandController,
-                        decoration: _inputDec('ブランド（例：ユニクロ）'),
-                      ),
-                    ),
+                    Expanded(child: TextField(controller: _brandController, decoration: _inputDec('ブランド（例：ユニクロ）'))),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _descController,
-                        decoration: _inputDec('アイテム名（例：クルーネックニット）'),
-                      ),
-                    ),
+                    Expanded(child: TextField(controller: _descController, decoration: _inputDec('アイテム名（例：クルーネックニット）'))),
                     const SizedBox(width: 8),
                     ElevatedButton(
                       onPressed: _saving ? null : _addItem,
@@ -167,7 +240,6 @@ class _ClosetScreenState extends State<ClosetScreen> {
             ),
           ),
           const Divider(height: 1),
-          // クローゼット一覧
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _ref.orderBy('createdAt', descending: true).snapshots(),
@@ -183,12 +255,11 @@ class _ClosetScreenState extends State<ClosetScreen> {
                         SizedBox(height: 12),
                         Text('まだ服が登録されていません', style: TextStyle(color: Colors.grey)),
                         SizedBox(height: 4),
-                        Text('上のフォームから追加してください', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text('写真から追加するかフォームで入力してください', style: TextStyle(color: Colors.grey, fontSize: 12)),
                       ],
                     ),
                   );
                 }
-                // カテゴリ別にグループ化
                 final grouped = <String, List<ClothingItem>>{};
                 for (final item in items) {
                   grouped.putIfAbsent(item.category, () => []).add(item);
@@ -234,7 +305,6 @@ class _ClosetScreenState extends State<ClosetScreen> {
   );
 }
 
-// クローゼットの服一覧をテキストで取得（Claude AIに渡す用）
 Future<String> getClosetSummary() async {
   final uid = FirebaseAuth.instance.currentUser?.uid;
   if (uid == null) return '';

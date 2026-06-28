@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -335,6 +336,110 @@ class _ProfileScreenState extends State<ProfileScreen> {
   );
 }
 
+class _ImageGeneratingCard extends StatefulWidget {
+  const _ImageGeneratingCard();
+
+  @override
+  State<_ImageGeneratingCard> createState() => _ImageGeneratingCardState();
+}
+
+class _ImageGeneratingCardState extends State<_ImageGeneratingCard> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  int _tipIndex = 0;
+  static const _tips = [
+    '✨ コーデ画像を生成中です...',
+    '👗 AIがあなたのスタイルを描いています...',
+    '🎨 ブランドのビジュアルを正確に再現中...',
+    '👟 シューズからアクセサリーまで細部を描写中...',
+    '🌟 もうすぐ完成します...',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: const Duration(seconds: 6))
+      ..addListener(() {
+        final newIndex = (_controller.value * _tips.length).floor().clamp(0, _tips.length - 1);
+        if (newIndex != _tipIndex) setState(() => _tipIndex = newIndex);
+      })
+      ..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7FD6C2), Color(0xFF5BC4AE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const SizedBox(
+                width: 18, height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _tips[_tipIndex],
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (_, __) => LinearProgressIndicator(
+                value: _controller.value,
+                backgroundColor: Colors.white30,
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                minHeight: 4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('💡 スタイリングの豆知識', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                SizedBox(height: 4),
+                Text(
+                  'コーデの基本は「3色ルール」。メインカラー・サブカラー・アクセントカラーの3色でまとめると洗練されたスタイルが完成します',
+                  style: TextStyle(color: Colors.white, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ChatMessage {
   final String text;
   final bool isUser;
@@ -343,9 +448,9 @@ class ChatMessage {
 }
 
 class ClaudeService {
-  static const String _proxyUrl = 'http://localhost:3000/chat';
-  static const String _imageUrl = 'http://localhost:3000/generate-image';
-  static const String _weatherUrl = 'http://localhost:3000/weather';
+  static const String _proxyUrl = 'https://stylemind-proxy-production.up.railway.app/chat';
+  static const String _imageUrl = 'https://stylemind-proxy-production.up.railway.app/generate-image';
+  static const String _weatherUrl = 'https://stylemind-proxy-production.up.railway.app/weather';
 
   static Future<Map<String, dynamic>?> getWeather(double lat, double lon) async {
     try {
@@ -391,13 +496,36 @@ class ClaudeService {
     }
   }
 
+  static Future<String?> getFashionTip() async {
+    try {
+      final tips = [
+        '白シャツ1枚でコーデの印象が大きく変わります。オーバーサイズとジャストサイズを使い分けてみましょう',
+        'デニムの色で季節感を演出できます。夏は薄いライトブルー、秋冬は濃いインディゴが旬です',
+        'スニーカーの白は最強の万能アイテム。どんなコーデにも合わせやすくクリーンな印象を作れます',
+        'バッグの色はシューズと合わせると統一感が生まれます。この小技でグッとおしゃれに見えます',
+        'レイヤードは首元・袖口・裾の3箇所で差し色を見せると洗練されたスタイルになります',
+        'ワントーンコーデは同系色でまとめることで自然なグラデーションが生まれおしゃれ上級者に見えます',
+        '腕時計は左手首、リングは右手に付けるとバランスよく見えます',
+        '黒スキニーは一枚持っておくだけで様々なコーデに活用できる最強の万能アイテムです',
+        'オーバーサイズトップスはボトムをタックインするとシルエットが締まりスタイルよく見えます',
+        'ベルトはパンツとシューズの色に合わせると全体がまとまり、洗練された印象になります',
+        'ニットとデニムの組み合わせは季節を問わず使えるベーシックコーデの王道です',
+        'キャップ一つでカジュアル感が増し、ストリートスタイルのアクセントになります',
+      ];
+      tips.shuffle();
+      return tips.first;
+    } catch (e) {
+      return null;
+    }
+  }
+
   static Future<String?> generateImage(String prompt, {UserProfile? userProfile}) async {
     try {
       final response = await http.post(
         Uri.parse(_imageUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'prompt': prompt, 'userProfile': userProfile?.toMap()}),
-      ).timeout(const Duration(seconds: 60));
+      ).timeout(const Duration(seconds: 120));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -422,10 +550,11 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
+  String? _lastOutfitReply; // 最新のコーデ提案テキストを記憶
 
   final List<ChatMessage> _messages = [
     ChatMessage(
-      text: 'こんにちは！私はStyleMind AIです👗\nどんなコーデの相談でもOKですよ！\n\n例えば：\n・デートに着ていく服を教えて\n・就活スーツに合うシャツは？\n・今日の気分はカジュアルに！',
+      text: 'こんにちは！私はStyleMind AIです👗\nどんなコーデの相談でもOKですよ！\n\n例えば：\n・デートに着ていく服を教えて\n・就活スーツに合うシャツは？\n・今日の気分はカジュアルに！\n\n⚠️ 画像生成について\nAIが生成するコーデ画像は「雰囲気のイメージ」です。著作権・商標の関係上、ブランドロゴやマークは表示されません。実際の商品は「購入」ボタンからご確認ください。',
       isUser: false,
     ),
   ];
@@ -549,6 +678,231 @@ class _ChatScreenState extends State<ChatScreen> {
     return null; // スマホ版で実装予定
   }
 
+  // コーデテキストからアイテムリストを抽出
+  List<Map<String, String>> _parseOutfitItemsForShop(String messageText) {
+    final labelMap = [
+      [['トップス', 'シャツ', 'Tシャツ', 'ニット', 'カットソー', 'ポロ', 'インナー'], 'トップス', '👕'],
+      [['ボトムス', 'パンツ', 'デニム', 'ジーンズ', 'スカート', 'チノ', 'スラックス', 'ショーツ'], 'ボトムス', '👖'],
+      [['アウター', 'ジャケット', 'コート', 'パーカー', 'ブルゾン', 'フーディ', 'ダウン'], 'アウター', '🧥'],
+      [['シューズ', '靴', 'スニーカー', 'ブーツ', 'サンダル', 'ローファー', '足元'], 'シューズ', '👟'],
+      [['バッグ', 'カバン', 'リュック', 'トート', 'ショルダー', 'クラッチ', 'サコッシュ'], 'バッグ', '👜'],
+      [['時計', 'ウォッチ'], '時計', '⌚'],
+      [['アクセサリー', 'リング', 'ネックレス', 'ブレスレット', 'ピアス'], 'アクセサリー', '💍'],
+    ];
+
+    final luxuryBrands = RegExp(
+      r'マルジェラ|アクネ|バレンシアガ|ストーンアイランド|モンクレール|オフホワイト|クロムハーツ|ロレックス|ロンシャン|メゾン|Maison|Acne|Balenciaga|Supreme|シュプリーム|ビームス|ケンゾー|ゴールドウィン',
+      caseSensitive: false,
+    );
+    final massRetailBrands = RegExp(
+      r'ユニクロ|UNIQLO|GU|ジーユー|しまむら|ワークマン',
+      caseSensitive: false,
+    );
+
+    final lines = messageText.split('\n');
+    final List<Map<String, String>> items = [];
+    final Set<String> addedLabels = {};
+
+    for (final line in lines) {
+      final colonIdx = line.indexOf('：') != -1 ? line.indexOf('：') : line.indexOf(':');
+      if (colonIdx == -1) continue;
+      final labelRaw = line.substring(0, colonIdx).replaceAll(RegExp(r'[\*\#\s「」]'), '');
+      final valueRaw = line.substring(colonIdx + 1)
+          .replaceAll(RegExp(r'\*\*'), '')
+          .replaceAll(RegExp(r'¥[\d,〜~]+(?:万)?(?:前後|程度)?'), '')
+          .trim();
+      if (valueRaw.isEmpty || valueRaw.length < 2) continue;
+
+      for (final entry in labelMap) {
+        final keywords = entry[0] as List<String>;
+        final label = entry[1] as String;
+        final icon = entry[2] as String;
+        if (keywords.any((kw) => labelRaw.contains(kw)) && !addedLabels.contains(label)) {
+          final isLuxury = luxuryBrands.hasMatch(valueRaw);
+          final isMassRetail = massRetailBrands.hasMatch(valueRaw);
+          final keyword = valueRaw.length > 40 ? valueRaw.substring(0, 40) : valueRaw;
+          final encoded = Uri.encodeComponent(keyword);
+
+          // ストアリストをブランドに応じて決定
+          final List<Map<String, String>> shops = [];
+          if (!isMassRetail) {
+            shops.add({'name': 'ZOZOTOWN', 'icon': '🛍️', 'url': 'https://zozo.jp/search/?s=$encoded'});
+          }
+          if (isMassRetail && massRetailBrands.hasMatch(valueRaw)) {
+            shops.add({'name': 'ユニクロ公式', 'icon': '👕', 'url': 'https://www.uniqlo.com/jp/ja/search?q=${Uri.encodeComponent(valueRaw.replaceAll(RegExp(r'ユニクロ|UNIQLO'), '').trim())}'});
+          } else if (!isLuxury) {
+            // プチプラ・一般ブランドのみユニクロに送る
+          }
+          shops.add({'name': 'Rakuten Fashion', 'icon': '🏪', 'url': 'https://search.rakuten.co.jp/search/mall/$encoded/100533/'});
+          shops.add({'name': 'Amazon', 'icon': '📦', 'url': 'https://www.amazon.co.jp/s?k=$encoded&i=fashion'});
+
+          items.add({
+            'label': label,
+            'icon': icon,
+            'value': valueRaw,
+            'shops': shops.map((s) => '${s['icon']}|${s['name']}|${s['url']}').join(';;'),
+          });
+          addedLabels.add(label);
+          break;
+        }
+      }
+    }
+    return items;
+  }
+
+  void _showOutfitDetails(BuildContext context, String outfitText) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.5,
+        maxChildSize: 0.85,
+        builder: (_, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 16),
+              const Text('👗 コーデ詳細', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 12),
+              Text(
+                outfitText.replaceAll(RegExp(r'\*\*'), ''),
+                style: const TextStyle(fontSize: 14, height: 1.7),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _showShopLinks(context, outfitText);
+                  },
+                  icon: const Icon(Icons.shopping_bag_outlined),
+                  label: const Text('このコーデを購入する'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7FD6C2),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showShopLinks(BuildContext context, String messageText) {
+    final outfitItems = _parseOutfitItemsForShop(messageText);
+
+    // WEARリンク用キーワード
+    final wearKeyword = Uri.encodeComponent(outfitItems.isNotEmpty ? outfitItems.first['value']! : 'コーデ');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.7,
+        maxChildSize: 0.95,
+        builder: (_, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)))),
+              const SizedBox(height: 16),
+              const Text('🛒 アイテム別購入リンク', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+              const SizedBox(height: 4),
+              const Text('各アイテムをタップしてショップで検索', style: TextStyle(color: Colors.grey, fontSize: 12)),
+              const SizedBox(height: 16),
+              if (outfitItems.isEmpty)
+                const Text('アイテム情報が見つかりませんでした', style: TextStyle(color: Colors.grey))
+              else
+                ...outfitItems.map((item) {
+                  final shops = item['shops']!.split(';;').map((s) {
+                    final parts = s.split('|');
+                    return {'icon': parts[0], 'name': parts[1], 'url': parts[2]};
+                  }).toList();
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade200),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF7FD6C2).withOpacity(0.1),
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(item['icon']!, style: const TextStyle(fontSize: 18)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(item['label']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF5BB8A8))),
+                                    Text(item['value']!, style: const TextStyle(fontSize: 12, color: Colors.black87), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ...shops.map((shop) => ListTile(
+                          dense: true,
+                          leading: Text(shop['icon']!, style: const TextStyle(fontSize: 20)),
+                          title: Text(shop['name']!, style: const TextStyle(fontSize: 14)),
+                          trailing: const Icon(Icons.open_in_new, size: 16, color: Color(0xFF7FD6C2)),
+                          onTap: () async {
+                            final uri = Uri.parse(shop['url']!);
+                            try {
+                              await launchUrl(uri, mode: LaunchMode.externalApplication);
+                            } catch (_) {
+                              await launchUrl(uri, mode: LaunchMode.platformDefault);
+                            }
+                          },
+                        )),
+                      ],
+                    ),
+                  );
+                }),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Text('📸', style: TextStyle(fontSize: 20)),
+                title: const Text('WEAR（コーデ参考）', style: TextStyle(fontSize: 14)),
+                trailing: const Icon(Icons.open_in_new, size: 16, color: Color(0xFF7FD6C2)),
+                onTap: () async {
+                  final uri = Uri.parse('https://wear.jp/search/?q=$wearKeyword');
+                  try {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  } catch (_) {
+                    await launchUrl(uri, mode: LaunchMode.platformDefault);
+                  }
+                },
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isLoading) return;
@@ -586,22 +940,52 @@ class _ChatScreenState extends State<ChatScreen> {
 
     await _saveToFirestore(reply, false);
 
+    // AIの返答がコーデ提案の場合、最新として記憶
+    final bool isOutfitReply = reply.contains('トップス') || reply.contains('ボトムス') ||
+        reply.contains('シューズ') || reply.contains('足元') || reply.contains('スニーカー') ||
+        reply.contains('アウター') || reply.contains('ジャケット');
+    if (isOutfitReply) {
+      _lastOutfitReply = reply;
+    }
+
     // 画像生成はユーザーが明示的に依頼した場合のみ
     final userText = text.toLowerCase();
-    final isImageRequest = userText.contains('画像') || userText.contains('写真') || userText.contains('見せて') || userText.contains('イメージ') || userText.contains('生成して') || userText.contains('画像作って');
+    final isImageRequest = userText.contains('画像') || userText.contains('写真') || userText.contains('見せて') || userText.contains('イメージ') || userText.contains('生成') || userText.contains('画面') || userText.contains('見たい') || userText.contains('コーデ見') || userText.contains('作って');
 
     if (isImageRequest) {
       setState(() {
-        _messages.add(ChatMessage(text: '👗 コーデ画像を生成中です...（約15秒かかります）', isUser: false));
+        _messages.add(ChatMessage(text: '__generating_image__', isUser: false));
         _isLoading = true;
       });
       _scrollToBottom();
 
-      final imageUrl = await ClaudeService.generateImage(reply, userProfile: widget.userProfile);
+      // 最新のコーデ提案を使用（なければ直前メッセージを検索）
+      String outfitText = _lastOutfitReply ?? reply;
+      if (_lastOutfitReply == null) {
+        for (int i = _messages.length - 1; i >= 0; i--) {
+          final msg = _messages[i];
+          if (!msg.isUser && (msg.text.contains('トップス') || msg.text.contains('ボトムス') || msg.text.contains('シューズ') || msg.text.contains('足元') || msg.text.contains('スニーカー'))) {
+            outfitText = msg.text;
+            break;
+          }
+        }
+      }
+
+      // 画像生成と並列でTipsを取得
+      final results = await Future.wait([
+        ClaudeService.generateImage(outfitText, userProfile: widget.userProfile),
+        ClaudeService.getFashionTip(),
+      ]);
+      final imageUrl = results[0] as String?;
+      final tip = results[1] as String?;
+
       setState(() {
         _isLoading = false;
         if (imageUrl != null) {
           _messages.last = ChatMessage(text: '👗 提案コーデのイメージ', isUser: false, imageUrl: imageUrl);
+          if (tip != null && tip.isNotEmpty) {
+            _messages.add(ChatMessage(text: '💡 スタイリングTips\n$tip', isUser: false));
+          }
         } else {
           _messages.last = ChatMessage(text: '画像の生成に失敗しました。もう一度お試しください。', isUser: false);
         }
@@ -709,6 +1093,12 @@ class _ChatScreenState extends State<ChatScreen> {
                   );
                 }
                 final msg = _messages[index];
+
+                // 画像生成中ローディングカード
+                if (msg.text == '__generating_image__' && !msg.isUser) {
+                  return const _ImageGeneratingCard();
+                }
+
                 return Align(
                   alignment: msg.isUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: GestureDetector(
@@ -744,32 +1134,81 @@ class _ChatScreenState extends State<ChatScreen> {
                         ),
                         if (!msg.isUser && msg.imageUrl == null && msg.text.isNotEmpty) ...[
                           const SizedBox(height: 4),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () => _saveCoordinate(msg.text, null),
-                              icon: const Icon(Icons.bookmark_border, size: 16, color: Color(0xFF7FD6C2)),
-                              label: const Text('保存', style: TextStyle(color: Color(0xFF7FD6C2), fontSize: 12)),
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              TextButton.icon(
+                                onPressed: () => _saveCoordinate(msg.text, null),
+                                icon: const Icon(Icons.bookmark_border, size: 16, color: Color(0xFF7FD6C2)),
+                                label: const Text('保存', style: TextStyle(color: Color(0xFF7FD6C2), fontSize: 12)),
+                              ),
+                              TextButton.icon(
+                                onPressed: () => _showShopLinks(context, msg.text),
+                                icon: const Icon(Icons.shopping_bag_outlined, size: 16, color: Color(0xFF7FD6C2)),
+                                label: const Text('購入', style: TextStyle(color: Color(0xFF7FD6C2), fontSize: 12)),
+                              ),
+                            ],
                           ),
                         ],
                         if (msg.imageUrl != null) ...[
                           const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Builder(builder: (context) {
-                              if (msg.imageUrl!.startsWith('data:image')) {
-                                final b64 = msg.imageUrl!.split(',').last;
-                                final Uint8List bytes = base64Decode(b64);
-                                return Image.memory(bytes, width: double.infinity, fit: BoxFit.cover);
-                              }
-                              return Image.network(msg.imageUrl!, width: double.infinity, fit: BoxFit.cover);
-                            }),
+                          Stack(
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  final outfitText = _lastOutfitReply ?? msg.text;
+                                  _showOutfitDetails(context, outfitText);
+                                },
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Builder(builder: (context) {
+                                    if (msg.imageUrl!.startsWith('data:image')) {
+                                      final b64 = msg.imageUrl!.split(',').last;
+                                      final Uint8List bytes = base64Decode(b64);
+                                      return Image.memory(bytes, width: double.infinity, fit: BoxFit.cover);
+                                    }
+                                    return Image.network(msg.imageUrl!, width: double.infinity, fit: BoxFit.cover);
+                                  }),
+                                ),
+                              ),
+                              Positioned(
+                                bottom: 8,
+                                right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.55),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.touch_app, color: Colors.white, size: 14),
+                                      SizedBox(width: 4),
+                                      Text('タップで詳細', style: TextStyle(color: Colors.white, fontSize: 11)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 8),
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.end,
                             children: [
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  onPressed: () {
+                                    _controller.text = '節約版のコーデも提案してください。それぞれの違いや高い版の良さも教えてください。';
+                                    _sendMessage();
+                                  },
+                                  icon: const Icon(Icons.compare_arrows, size: 16, color: Color(0xFF7FD6C2)),
+                                  label: const Text('節約版と比較', style: TextStyle(color: Color(0xFF7FD6C2), fontSize: 12)),
+                                  style: OutlinedButton.styleFrom(
+                                    side: const BorderSide(color: Color(0xFF7FD6C2)),
+                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                  ),
+                                ),
+                              ),
                               TextButton.icon(
                                 onPressed: () => _saveCoordinate(msg.text, msg.imageUrl),
                                 icon: const Icon(Icons.bookmark_border, size: 18, color: Color(0xFF7FD6C2)),
@@ -822,7 +1261,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           vertical: 10,
                         ),
                       ),
-                      enabled: !_isLoading,
+                      enabled: true,
                     ),
                   ),
                 ),

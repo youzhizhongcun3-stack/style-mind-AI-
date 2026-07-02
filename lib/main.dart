@@ -188,6 +188,7 @@ class ProfileGate extends StatefulWidget {
 class _ProfileGateState extends State<ProfileGate> {
   UserProfile? _profile;
   bool _checked = false;
+  bool _introDone = false;
 
   @override
   void initState() {
@@ -223,11 +224,91 @@ class _ProfileGateState extends State<ProfileGate> {
   Widget build(BuildContext context) {
     if (!_checked) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (_profile == null || !_profile!.isComplete) {
+      if (!_introDone) {
+        return AppIntroScreen(onStart: () => setState(() => _introDone = true));
+      }
       return ProfileScreen(onComplete: (profile) {
         setState(() => _profile = profile);
       });
     }
     return ChatScreen(userProfile: _profile!);
+  }
+}
+
+class AppIntroScreen extends StatelessWidget {
+  final VoidCallback onStart;
+  const AppIntroScreen({super.key, required this.onStart});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      ('👗', 'あなた専属のAIスタイリスト', 'チャットで相談するだけで、TPOに合わせたコーデをAIが提案します'),
+      ('🧥', 'クローゼットを活用', '持っている服を登録すると、その服を使ったコーデも提案できます'),
+      ('🖼️', 'コーデを画像でイメージ', '提案されたコーデは画像でも確認でき、そのまま保存もできます'),
+      ('🛍️', 'そのまま購入もOK', '気に入ったアイテムは「購入」ボタンから通販サイトで探せます'),
+    ];
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              const Text('StyleMind AI', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF5BB8A8))),
+              const SizedBox(height: 4),
+              const Text('へようこそ！', style: TextStyle(fontSize: 16, color: Colors.grey)),
+              const SizedBox(height: 32),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: items.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 24),
+                  itemBuilder: (_, i) {
+                    final (emoji, title, desc) = items[i];
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(emoji, style: const TextStyle(fontSize: 32)),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              Text(desc, style: const TextStyle(fontSize: 13, color: Colors.grey, height: 1.5)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'この後、簡単な質問（30秒ほど）にお答えいただくと、あなた好みのコーデを提案できるようになります',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: onStart,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7FD6C2),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                  ),
+                  child: const Text('はじめる →', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -939,6 +1020,14 @@ class _ChatScreenState extends State<ChatScreen> {
           .trim();
       if (valueRaw.isEmpty || valueRaw.length < 2) continue;
 
+      // 通販サイト検索用キーワード：「または〜」の代替案や補足注記は検索エンジンが解釈できないため除去
+      final searchValue = valueRaw
+          .replaceAll(RegExp(r'または.*$'), '')
+          .replaceAll(RegExp(r'※[^\n]*'), '')
+          .replaceAll(RegExp(r'（節約版[^）]*）'), '')
+          .replaceAll(RegExp(r'\s{2,}'), ' ')
+          .trim();
+
       for (final entry in labelMap) {
         final keywords = entry[0] as List<String>;
         final label = entry[1] as String;
@@ -946,7 +1035,7 @@ class _ChatScreenState extends State<ChatScreen> {
         if (keywords.any((kw) => labelRaw.contains(kw)) && !addedLabels.contains(label)) {
           final isLuxury = luxuryBrands.hasMatch(valueRaw);
           final isMassRetail = massRetailBrands.hasMatch(valueRaw);
-          final keyword = valueRaw.length > 40 ? valueRaw.substring(0, 40) : valueRaw;
+          final keyword = searchValue.length > 40 ? searchValue.substring(0, 40) : searchValue;
           final encoded = Uri.encodeComponent(keyword);
 
           // ストアリストをブランドに応じて決定
@@ -955,11 +1044,12 @@ class _ChatScreenState extends State<ChatScreen> {
             shops.add({'name': 'ZOZOTOWN', 'icon': '🛍️', 'url': 'https://zozo.jp/search/?s=$encoded'});
           }
           if (isMassRetail && massRetailBrands.hasMatch(valueRaw)) {
-            shops.add({'name': 'ユニクロ公式', 'icon': '👕', 'url': 'https://www.uniqlo.com/jp/ja/search?q=${Uri.encodeComponent(valueRaw.replaceAll(RegExp(r'ユニクロ|UNIQLO'), '').trim())}'});
+            shops.add({'name': 'ユニクロ公式', 'icon': '👕', 'url': 'https://www.uniqlo.com/jp/ja/search?q=${Uri.encodeComponent(searchValue.replaceAll(RegExp(r'ユニクロ|UNIQLO'), '').trim())}'});
           } else if (!isLuxury) {
             // プチプラ・一般ブランドのみユニクロに送る
           }
-          final rakutenSearchUrl = Uri.encodeComponent('https://search.rakuten.co.jp/search/mall/${Uri.decodeComponent(encoded)}/100533/');
+          // ジャンルID指定なし（旧100533は「キッズ・ベビー・マタニティ」ジャンルで誤指定だった）
+          final rakutenSearchUrl = Uri.encodeComponent('https://search.rakuten.co.jp/search/mall/${Uri.decodeComponent(encoded)}/');
           shops.add({'name': 'Rakuten Fashion', 'icon': '🏪', 'url': 'https://rpx.a8.net/svt/ejp?a8mat=4B66KH+C6SHMA+2HOM+BW8O1&rakuten=y&a8ejpredirect=http%3A%2F%2Fhb.afl.rakuten.co.jp%2Fhgc%2F0ea62065.34400275.0ea62066.204f04c0%2Fa26062830024_4B66KH_C6SHMA_2HOM_BW8O1%3Fpc%3D$rakutenSearchUrl'});
           shops.add({'name': 'Amazon', 'icon': '📦', 'url': 'https://www.amazon.co.jp/s?k=$encoded&i=fashion&tag=stylemind2026-22'});
 

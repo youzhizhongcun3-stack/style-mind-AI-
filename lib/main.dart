@@ -1049,8 +1049,9 @@ class _ChatScreenState extends State<ChatScreen> {
             // プチプラ・一般ブランドのみユニクロに送る
           }
           // ジャンルID指定なし（旧100533は「キッズ・ベビー・マタニティ」ジャンルで誤指定だった）
+          // 楽天アフィリエイト直リンク（オーナー個人アカウント発行のID。旧A8.net経由リンクは別アカウント宛だったため置き換え）
           final rakutenSearchUrl = Uri.encodeComponent('https://search.rakuten.co.jp/search/mall/${Uri.decodeComponent(encoded)}/');
-          shops.add({'name': 'Rakuten Fashion', 'icon': '🏪', 'url': 'https://rpx.a8.net/svt/ejp?a8mat=4B66KH+C6SHMA+2HOM+BW8O1&rakuten=y&a8ejpredirect=http%3A%2F%2Fhb.afl.rakuten.co.jp%2Fhgc%2F0ea62065.34400275.0ea62066.204f04c0%2Fa26062830024_4B66KH_C6SHMA_2HOM_BW8O1%3Fpc%3D$rakutenSearchUrl'});
+          shops.add({'name': 'Rakuten Fashion', 'icon': '🏪', 'url': 'https://hb.afl.rakuten.co.jp/hgc/556d406f.aeda9c3d.556d4070.99ba5cc0/?pc=$rakutenSearchUrl&link_type=hybrid_url'});
           shops.add({'name': 'Amazon', 'icon': '📦', 'url': 'https://www.amazon.co.jp/s?k=$encoded&i=fashion&tag=stylemind2026-22'});
 
           items.add({

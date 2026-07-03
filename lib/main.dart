@@ -1041,7 +1041,9 @@ class _ChatScreenState extends State<ChatScreen> {
           // ストアリストをブランドに応じて決定
           final List<Map<String, String>> shops = [];
           if (!isMassRetail) {
-            shops.add({'name': 'ZOZOTOWN', 'icon': '🛍️', 'url': 'https://zozo.jp/search/?s=$encoded'});
+            // ZOZOTOWNはアフィリエイトプログラムが2012年に終了し現存しないため、Yahoo!ショッピングに置き換え（バリューコマース MyLink経由）
+            final yahooShoppingUrl = Uri.encodeComponent('https://shopping.yahoo.co.jp/search?p=${Uri.decodeComponent(encoded)}');
+            shops.add({'name': 'Yahoo!ショッピング', 'icon': '🛍️', 'url': 'https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=3774833&pid=892651346&vc_url=$yahooShoppingUrl'});
           }
           if (isMassRetail && massRetailBrands.hasMatch(valueRaw)) {
             shops.add({'name': 'ユニクロ公式', 'icon': '👕', 'url': 'https://www.uniqlo.com/jp/ja/search?q=${Uri.encodeComponent(searchValue.replaceAll(RegExp(r'ユニクロ|UNIQLO'), '').trim())}'});

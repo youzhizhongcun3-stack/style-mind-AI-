@@ -1055,6 +1055,8 @@ class _ChatScreenState extends State<ChatScreen> {
           final rakutenSearchUrl = Uri.encodeComponent('https://search.rakuten.co.jp/search/mall/${Uri.decodeComponent(encoded)}/');
           shops.add({'name': 'Rakuten Fashion', 'icon': '🏪', 'url': 'https://hb.afl.rakuten.co.jp/hgc/556d406f.aeda9c3d.556d4070.99ba5cc0/?pc=$rakutenSearchUrl&link_type=hybrid_url'});
           shops.add({'name': 'Amazon', 'icon': '📦', 'url': 'https://www.amazon.co.jp/s?k=$encoded&i=fashion&tag=stylemind2026-22'});
+          // セカンドストリート（A8.net、即時提携承認済み）：検索URL非対応のためトップページへの固定リンク
+          shops.add({'name': 'セカンドストリート', 'icon': '♻️', 'url': 'https://px.a8.net/svt/ejp?a8mat=4B7SH1+4FK6WI+4J34+HWXLD'});
 
           items.add({
             'label': label,

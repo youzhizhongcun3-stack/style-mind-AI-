@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -14,6 +15,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'closet_screen.dart';
 import 'saved_screen.dart';
+import 'purchase_service.dart';
+import 'package:purchases_flutter/purchases_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +25,7 @@ void main() async {
   );
   // Web版でもログイン状態を永続化
   await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+  await PurchaseService.init();
   runApp(const StyleMindApp());
 }
 
@@ -79,6 +83,10 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final provider = GoogleAuthProvider();
       await FirebaseAuth.instance.signInWithPopup(provider);
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null && PurchaseService.isPurchaseSupported) {
+        await Purchases.logIn(uid);
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -646,6 +654,83 @@ class _ImageGeneratingCardState extends State<_ImageGeneratingCard> with SingleT
   }
 }
 
+class _PaywallCard extends StatefulWidget {
+  const _PaywallCard();
+
+  @override
+  State<_PaywallCard> createState() => _PaywallCardState();
+}
+
+class _PaywallCardState extends State<_PaywallCard> {
+  bool _purchasing = false;
+
+  Future<void> _onUpgradePressed() async {
+    if (!PurchaseService.isPurchaseSupported) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('現在Web版では購読いただけません。スマホアプリ版からご購読ください。')),
+        );
+      }
+      return;
+    }
+    setState(() => _purchasing = true);
+    final success = await PurchaseService.purchasePremium();
+    if (mounted) {
+      setState(() => _purchasing = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(success ? 'ご購読ありがとうございます！引き続きお楽しみください' : '購入が完了しませんでした')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF7FD6C2), Color(0xFF5BC4AE)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '✨ 無料の画像生成回数を使い切りました',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            '有料プラン（月額980円）で、画像生成が無制限になります。',
+            style: TextStyle(color: Colors.white, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _purchasing ? null : _onUpgradePressed,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF3C9A85),
+              ),
+              child: _purchasing
+                  ? const SizedBox(
+                      width: 18, height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('有料プランにアップグレード'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class ChatMessage {
   final String text;
   final bool isUser;
@@ -657,6 +742,7 @@ class ClaudeService {
   static const String _proxyUrl = 'https://stylemind-proxy-production.up.railway.app/chat';
   static const String _imageUrl = 'https://stylemind-proxy-production.up.railway.app/generate-image';
   static const String _weatherUrl = 'https://stylemind-proxy-production.up.railway.app/weather';
+  static const String _outfitAnalysisUrl = 'https://stylemind-proxy-production.up.railway.app/analyze-outfit';
 
   static Future<Map<String, dynamic>?> getWeather(double lat, double lon) async {
     try {
@@ -664,7 +750,7 @@ class ClaudeService {
         Uri.parse(_weatherUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'lat': lat, 'lon': lon}),
-      );
+      ).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         return jsonDecode(utf8.decode(response.bodyBytes));
       }
@@ -689,7 +775,7 @@ class ClaudeService {
           'userProfile': userProfile?.toMap(),
           'closetSummary': closetSummary ?? '',
         }),
-      );
+      ).timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(utf8.decode(response.bodyBytes));
@@ -698,7 +784,7 @@ class ClaudeService {
         return 'エラーが発生しました。もう一度試してください。';
       }
     } catch (e) {
-      return '接続エラー: サーバーが起動しているか確認してください。';
+      return '通信がうまくいきませんでした。もう一度お試しください。';
     }
   }
 
@@ -750,6 +836,26 @@ class ClaudeService {
       return null;
     }
   }
+
+  /// 全身コーデ写真を送って、服装だけについてのフィードバックをもらう（顔・髪型・体型には触れない）。
+  static Future<String?> analyzeOutfit(Uint8List imageBytes, {UserProfile? userProfile}) async {
+    try {
+      final base64Image = base64Encode(imageBytes);
+      final response = await http.post(
+        Uri.parse(_outfitAnalysisUrl),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'imageBase64': base64Image, 'userProfile': userProfile?.toMap()}),
+      ).timeout(const Duration(seconds: 45));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(response.bodyBytes));
+        return data['reply'] as String;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
 }
 
 class ChatScreen extends StatefulWidget {
@@ -766,6 +872,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _isLoading = false;
   String? _lastOutfitReply;
   String? _selectedScene;
+  int? _remainingFree;
+  bool _premium = false;
 
   static const String _welcomeMessage = 'こんにちは！私はStyleMind AIです👗\nどんなコーデの相談でもOKですよ！\n\n例えば：\n・デートに着ていく服を教えて\n・就活スーツに合うシャツは？\n・今日の気分はカジュアルに！\n\n⚠️ 画像生成について\nAIが生成するコーデ画像は「雰囲気のイメージ」です。著作権・商標の関係上、ブランドロゴやマークは表示されません。実際の商品は「購入」ボタンからご確認ください。';
 
@@ -777,7 +885,18 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _loadChatHistory();
+    _refreshFreeStatus();
     WidgetsBinding.instance.addPostFrameCallback((_) => _showDisclaimerIfNeeded());
+  }
+
+  Future<void> _refreshFreeStatus() async {
+    final premium = await PurchaseService.isPremium();
+    final remaining = await PurchaseService.remainingFreeGenerations();
+    if (!mounted) return;
+    setState(() {
+      _premium = premium;
+      _remainingFree = remaining;
+    });
   }
 
   Future<void> _showDisclaimerIfNeeded() async {
@@ -1296,6 +1415,15 @@ class _ChatScreenState extends State<ChatScreen> {
     final isImageRequest = userText.contains('画像') || userText.contains('写真') || userText.contains('見せて') || userText.contains('イメージ') || userText.contains('生成') || userText.contains('画面') || userText.contains('見たい') || userText.contains('コーデ見') || userText.contains('作って');
 
     if (isImageRequest) {
+      final canGenerate = await PurchaseService.canGenerateImage();
+      if (!canGenerate) {
+        setState(() {
+          _messages.add(ChatMessage(text: '__paywall__', isUser: false));
+        });
+        _scrollToBottom();
+        return;
+      }
+
       setState(() {
         _messages.add(ChatMessage(text: '__generating_image__', isUser: false));
         _isLoading = true;
@@ -1322,6 +1450,11 @@ class _ChatScreenState extends State<ChatScreen> {
       final imageUrl = results[0] as String?;
       final tip = results[1] as String?;
 
+      if (imageUrl != null) {
+        await PurchaseService.recordGenerationUsed();
+        await _refreshFreeStatus();
+      }
+
       setState(() {
         _isLoading = false;
         if (imageUrl != null) {
@@ -1341,6 +1474,62 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
   }
 
+  /// 全身コーデ写真を撮影/選択してStyleMind AIに送り、服装だけのフィードバックをもらう。
+  /// 画像生成と同じ無料枠を消費する（2026-07-20方針）。
+  Future<void> _analyzeOutfitPhoto() async {
+    if (_isLoading) return;
+
+    final canUse = await PurchaseService.canGenerateImage();
+    if (!canUse) {
+      setState(() {
+        _messages.add(ChatMessage(text: '__paywall__', isUser: false));
+      });
+      _scrollToBottom();
+      return;
+    }
+
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70, maxWidth: 1024);
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    final dataUri = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+    setState(() {
+      _messages.add(ChatMessage(text: '今日のコーデ、これです！', isUser: true, imageUrl: dataUri));
+      _messages.add(ChatMessage(text: '', isUser: false));
+      _isLoading = true;
+    });
+    _scrollToBottom();
+    await _saveToFirestore('今日のコーデ、これです！', true, imageUrl: dataUri);
+
+    final reply = await ClaudeService.analyzeOutfit(bytes, userProfile: widget.userProfile);
+
+    if (reply == null) {
+      setState(() {
+        _isLoading = false;
+        _messages.last = ChatMessage(text: '写真の解析に失敗しました。もう一度お試しください。', isUser: false);
+      });
+      _scrollToBottom();
+      return;
+    }
+
+    await PurchaseService.recordGenerationUsed();
+    await _refreshFreeStatus();
+
+    final int lastIndex = _messages.length - 1;
+    for (int i = 0; i < reply.length; i++) {
+      await Future.delayed(const Duration(milliseconds: 8));
+      if (!mounted) return;
+      setState(() {
+        _messages[lastIndex] = ChatMessage(text: reply.substring(0, i + 1), isUser: false);
+      });
+    }
+    setState(() => _isLoading = false);
+    await _saveToFirestore(reply, false);
+    _scrollToBottom();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1356,6 +1545,11 @@ class _ChatScreenState extends State<ChatScreen> {
               FirebaseAuth.instance.currentUser?.displayName ?? '',
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
+            if (!_premium && _remainingFree != null)
+              Text(
+                '🎨 無料画像生成 あと$_remainingFree回',
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+              ),
           ],
         ),
         centerTitle: true,
@@ -1471,6 +1665,11 @@ class _ChatScreenState extends State<ChatScreen> {
                   );
                 }
                 final msg = _messages[index];
+
+                // 無料枠上限に達した場合のペイウォールカード
+                if (msg.text == '__paywall__' && !msg.isUser) {
+                  return const _PaywallCard();
+                }
 
                 // 画像生成中ローディングカード
                 if (msg.text == '__generating_image__' && !msg.isUser) {
@@ -1686,6 +1885,11 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.all(8.0),
             child: Row(
               children: [
+                IconButton(
+                  icon: const Icon(Icons.camera_alt_outlined, color: Color(0xFF7FD6C2)),
+                  tooltip: '今日のコーデを撮って診断してもらう',
+                  onPressed: _isLoading ? null : _analyzeOutfitPhoto,
+                ),
                 Expanded(
                   child: Focus(
                     onKeyEvent: (node, event) {

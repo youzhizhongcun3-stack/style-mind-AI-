@@ -84,7 +84,7 @@ class _ClosetScreenState extends State<ClosetScreen> {
     try {
       final base64Image = base64Encode(bytes);
       final response = await http.post(
-        Uri.parse('http://localhost:3000/analyze-clothing'),
+        Uri.parse('https://stylemind-proxy-production.up.railway.app/analyze-clothing'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'imageBase64': base64Image}),
       ).timeout(const Duration(seconds: 30));

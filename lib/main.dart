@@ -753,7 +753,7 @@ class _PaywallCardState extends State<_PaywallCard> {
           ),
           const SizedBox(height: 6),
           const Text(
-            '有料プラン（月額980円）で、画像生成が無制限になります。',
+            '有料プラン（月額1,000円）で、画像生成が無制限になります。',
             style: TextStyle(color: Colors.white, fontSize: 12),
           ),
           const SizedBox(height: 12),

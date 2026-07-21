@@ -15,6 +15,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'closet_screen.dart';
 import 'skeleton_diagnosis_screen.dart';
+import 'points_service.dart';
+import 'points_screen.dart';
 import 'saved_screen.dart';
 import 'purchase_service.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
@@ -211,6 +213,7 @@ class _ProfileGateState extends State<ProfileGate> {
   Future<void> _loadProfile() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+    await PointsService.captureReferralCodeFromUrl(Uri.base);
     final doc = await FirebaseFirestore.instance.collection('users').doc(uid).get();
     if (doc.exists && doc.data()?['profile'] != null) {
       final p = doc.data()!['profile'] as Map<String, dynamic>;
@@ -391,6 +394,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         }
       }, SetOptions(merge: true));
     }
+    await PointsService.ensureReferralCode();
+    await PointsService.awardReferralPointsIfEligible();
     final profile = UserProfile(gender: _gender, age: _age, styles: _selectedStyles, brands: _selectedBrands, budget: _budget, height: _height, bodyType: _bodyType, skeletonType: _skeletonType, ngItems: _selectedNgItems);
     widget.onComplete(profile);
   }
@@ -1659,6 +1664,15 @@ class _ChatScreenState extends State<ChatScreen> {
             onPressed: () {
               Navigator.push(context, MaterialPageRoute(
                 builder: (_) => ProfileScreen(onComplete: (_) => Navigator.pop(context)),
+              ));
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.card_giftcard, color: Colors.white),
+            tooltip: '招待・ポイント',
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => PointsScreen(userProfile: widget.userProfile),
               ));
             },
           ),

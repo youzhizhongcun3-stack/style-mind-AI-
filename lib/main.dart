@@ -14,6 +14,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'firebase_options.dart';
 import 'closet_screen.dart';
+import 'skeleton_diagnosis_screen.dart';
 import 'saved_screen.dart';
 import 'purchase_service.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
@@ -160,6 +161,7 @@ class UserProfile {
   String budget;
   String height;
   String bodyType;
+  String skeletonType;
   List<String> ngItems;
 
   UserProfile({
@@ -170,6 +172,7 @@ class UserProfile {
     this.budget = '',
     this.height = '',
     this.bodyType = '',
+    this.skeletonType = '',
     this.ngItems = const [],
   });
 
@@ -181,6 +184,7 @@ class UserProfile {
     'budget': budget,
     'height': height,
     'bodyType': bodyType,
+    'skeletonType': skeletonType,
     'ngItems': ngItems.join('・'),
   };
 
@@ -219,6 +223,7 @@ class _ProfileGateState extends State<ProfileGate> {
           budget: p['budget'] ?? '',
           height: p['height'] ?? '',
           bodyType: p['bodyType'] ?? '',
+          skeletonType: p['skeletonType'] ?? '',
           ngItems: List<String>.from(p['ngItems'] ?? []),
         );
         _checked = true;
@@ -228,6 +233,9 @@ class _ProfileGateState extends State<ProfileGate> {
     }
   }
 
+  bool _diagnosisDone = false;
+  String _skeletonType = '';
+
   @override
   Widget build(BuildContext context) {
     if (!_checked) return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -235,9 +243,20 @@ class _ProfileGateState extends State<ProfileGate> {
       if (!_introDone) {
         return AppIntroScreen(onStart: () => setState(() => _introDone = true));
       }
-      return ProfileScreen(onComplete: (profile) {
-        setState(() => _profile = profile);
-      });
+      if (!_diagnosisDone) {
+        return SkeletonDiagnosisScreen(onComplete: (type) {
+          setState(() {
+            _skeletonType = type;
+            _diagnosisDone = true;
+          });
+        });
+      }
+      return ProfileScreen(
+        initialSkeletonType: _skeletonType,
+        onComplete: (profile) {
+          setState(() => _profile = profile);
+        },
+      );
     }
     return ChatScreen(userProfile: _profile!);
   }
@@ -322,7 +341,8 @@ class AppIntroScreen extends StatelessWidget {
 
 class ProfileScreen extends StatefulWidget {
   final Function(UserProfile) onComplete;
-  const ProfileScreen({super.key, required this.onComplete});
+  final String initialSkeletonType;
+  const ProfileScreen({super.key, required this.onComplete, this.initialSkeletonType = ''});
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -335,6 +355,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _budget = '';
   String _height = '';
   String _bodyType = '';
+  String _skeletonType = '';
   final List<String> _selectedNgItems = [];
   bool _saving = false;
 
@@ -344,6 +365,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final List<String> _heightOptions = ['〜160cm', '161〜165cm', '166〜170cm', '171〜175cm', '176〜180cm', '181cm〜'];
   final List<String> _bodyTypeOptions = ['細身/スリム', '標準', 'がっちり/筋肉質', 'ぽっちゃり', '高身長', '小柄'];
   final List<String> _ngItemOptions = ['ショートパンツ', 'タンクトップ', 'スキニーパンツ', 'ハイヒール', 'ピンク系', '柄物', 'ロゴ多め', '露出多め'];
+
+  @override
+  void initState() {
+    super.initState();
+    _skeletonType = widget.initialSkeletonType;
+  }
 
   Future<void> _save() async {
     if (_gender.isEmpty || _selectedStyles.isEmpty) return;
@@ -359,11 +386,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           'budget': _budget,
           'height': _height,
           'bodyType': _bodyType,
+          'skeletonType': _skeletonType,
           'ngItems': _selectedNgItems,
         }
       }, SetOptions(merge: true));
     }
-    final profile = UserProfile(gender: _gender, age: _age, styles: _selectedStyles, brands: _selectedBrands, budget: _budget, height: _height, bodyType: _bodyType, ngItems: _selectedNgItems);
+    final profile = UserProfile(gender: _gender, age: _age, styles: _selectedStyles, brands: _selectedBrands, budget: _budget, height: _height, bodyType: _bodyType, skeletonType: _skeletonType, ngItems: _selectedNgItems);
     widget.onComplete(profile);
   }
 
@@ -405,7 +433,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case 5:
         return _chipGroup(_heightOptions, _height, (v) => setState(() => _height = v));
       case 6:
-        return _chipGroup(_bodyTypeOptions, _bodyType, (v) => setState(() => _bodyType = v));
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_skeletonType.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7FD6C2).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text('骨格タイプ診断の結果：$_skeletonType', style: const TextStyle(color: Color(0xFF3C9A85), fontWeight: FontWeight.bold, fontSize: 13)),
+              ),
+            _chipGroup(_bodyTypeOptions, _bodyType, (v) => setState(() => _bodyType = v)),
+          ],
+        );
       case 7:
         return _multiChipGroup(_ngItemOptions, _selectedNgItems, color: Colors.red[100]!);
       default:

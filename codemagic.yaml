@@ -1,0 +1,40 @@
+workflows:
+  ios-app-store:
+    name: StyleMind AI - App Store提出
+    max_build_duration: 60
+    integrations:
+      app_store_connect: stylemind_asc_key
+    environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.stylemindai.app
+      vars:
+        BUNDLE_ID: "com.stylemindai.app"
+        XCODE_WORKSPACE: "ios/Runner.xcworkspace"
+        XCODE_SCHEME: "Runner"
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Set up code signing settings on Xcode project
+        script: |
+          xcode-project use-profiles
+      - name: Get Flutter packages
+        script: |
+          flutter packages pub get
+      - name: Install pods
+        script: |
+          find . -name "Podfile" -execdir pod install \;
+      - name: Flutter build ipa and automatic versioning
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+        submit_to_app_store: false

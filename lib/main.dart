@@ -1031,6 +1031,69 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {}
   }
 
+  Future<void> _confirmDeleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('アカウントを削除'),
+        content: const Text('アカウントとすべてのデータ（チャット履歴・クローゼット・保存したコーデ・診断結果・ポイント）を完全に削除します。この操作は取り消せません。本当に削除しますか？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('キャンセル')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('削除する', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await _deleteAccount(context);
+  }
+
+  Future<void> _deleteAccount(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    final uid = user.uid;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+    );
+
+    try {
+      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+      for (final sub in ['messages', 'saved_coordinates', 'closet']) {
+        final docs = await userRef.collection(sub).get();
+        for (final d in docs.docs) {
+          await d.reference.delete();
+        }
+      }
+      await userRef.delete();
+
+      try {
+        await user.delete();
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'requires-recent-login') {
+          await user.reauthenticateWithProvider(GoogleAuthProvider());
+          await user.delete();
+        } else {
+          rethrow;
+        }
+      }
+
+      if (context.mounted) Navigator.pop(context); // ローディングダイアログを閉じる
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // ローディングダイアログを閉じる
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('削除に失敗しました: $e')),
+        );
+      }
+    }
+  }
+
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
@@ -1682,6 +1745,11 @@ class _ChatScreenState extends State<ChatScreen> {
             onPressed: () async {
               await FirebaseAuth.instance.signOut();
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_forever, color: Colors.white),
+            tooltip: 'アカウントを削除',
+            onPressed: () => _confirmDeleteAccount(context),
           ),
         ],
       ),

@@ -3,7 +3,7 @@ workflows:
     name: StyleMind AI - App Store提出
     max_build_duration: 60
     integrations:
-      app_store_connect: stylemind_asc_key2
+      app_store_connect: "StyleMind AI Developer"
     environment:
       vars:
         BUNDLE_ID: "com.stylemindai.app"

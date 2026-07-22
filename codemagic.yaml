@@ -5,9 +5,6 @@ workflows:
     integrations:
       app_store_connect: stylemind_asc_key2
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.stylemindai.app
       vars:
         BUNDLE_ID: "com.stylemindai.app"
         XCODE_WORKSPACE: "ios/Runner.xcworkspace"

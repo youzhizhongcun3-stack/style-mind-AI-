@@ -155,7 +155,16 @@ class _PointsScreenState extends State<PointsScreen> {
                     'ポイントが不足しています（50pt必要）',
                   ),
                 ),
-                _redeemTile(title: '限定コーデパターン解放', cost: 100, comingSoon: true),
+                _redeemTile(
+                  title: '限定コーデパターン解放',
+                  cost: 100,
+                  enabled: !_redeeming,
+                  onTap: () => _redeem(
+                    PointsService.redeemLimitedPatterns,
+                    '限定コーデパターンを解放しました！チャット画面に新しいスタイルが追加されます',
+                    'ポイントが不足しています（100pt必要）',
+                  ),
+                ),
                 _redeemTile(title: '購入時500円クーポン', cost: 200, comingSoon: true),
                 _redeemTile(
                   title: '「マイスタイリスト」称号',

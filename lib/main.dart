@@ -922,6 +922,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _selectedScene;
   int? _remainingFree;
   bool _premium = false;
+  bool _limitedPatternsUnlocked = false;
 
   static const String _welcomeMessage = 'こんにちは！私はStyleMind AIです👗\nどんなコーデの相談でもOKですよ！\n\n例えば：\n・デートに着ていく服を教えて\n・就活スーツに合うシャツは？\n・今日の気分はカジュアルに！\n\n⚠️ 画像生成について\nAIが生成するコーデ画像は「雰囲気のイメージ」です。著作権・商標の関係上、ブランドロゴやマークは表示されません。実際の商品は「購入」ボタンからご確認ください。';
 
@@ -934,7 +935,14 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     _loadChatHistory();
     _refreshFreeStatus();
+    _loadLimitedPatternsStatus();
     WidgetsBinding.instance.addPostFrameCallback((_) => _showDisclaimerIfNeeded());
+  }
+
+  Future<void> _loadLimitedPatternsStatus() async {
+    final unlocked = await PointsService.isLimitedPatternsUnlocked();
+    if (!mounted) return;
+    setState(() => _limitedPatternsUnlocked = unlocked);
   }
 
   Future<void> _refreshFreeStatus() async {
@@ -1464,6 +1472,12 @@ class _ChatScreenState extends State<ChatScreen> {
     {'label': '🌙 夜・パーティ', 'prompt': '夜のお出かけ・パーティ向けのコーデ'},
   ];
 
+  static const _limitedPatterns = [
+    {'label': '✨ セレブオフショット風', 'prompt': 'セレブのオフショット風の、こなれた高級感あるコーデを教えて'},
+    {'label': '👑 海外ハイブランドMIX', 'prompt': '海外セレブ風の、ハイブランドをカジュアルにMIXしたコーデを教えて'},
+    {'label': '🎬 モデルオフ風', 'prompt': 'モデルの私服・オフショット風の、抜け感のあるおしゃれなコーデを教えて'},
+  ];
+
   Future<void> _sendMessage() async {
     final rawText = _controller.text.trim();
     final text = (_selectedScene != null && rawText.isEmpty)
@@ -1733,10 +1747,12 @@ class _ChatScreenState extends State<ChatScreen> {
           IconButton(
             icon: const Icon(Icons.card_giftcard, color: Colors.white),
             tooltip: '招待・ポイント',
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(
+            onPressed: () async {
+              await Navigator.push(context, MaterialPageRoute(
                 builder: (_) => PointsScreen(userProfile: widget.userProfile),
               ));
+              _loadLimitedPatternsStatus();
+              _refreshFreeStatus();
             },
           ),
           IconButton(
@@ -1964,6 +1980,46 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   ),
                 )).toList(),
+              ),
+            ),
+          // 限定コーデパターン（ポイント交換で解放）
+          if (_limitedPatternsUnlocked)
+            Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: _limitedPatterns.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 6),
+                itemBuilder: (_, i) {
+                  final pattern = _limitedPatterns[i];
+                  final selected = _selectedScene == pattern['prompt'];
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _selectedScene = selected ? null : pattern['prompt'];
+                        if (!selected) _controller.clear();
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: selected ? const Color(0xFFD4AF37) : const Color(0xFFFFF7E0),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: const Color(0xFFD4AF37)),
+                      ),
+                      child: Text(
+                        pattern['label']!,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: selected ? Colors.white : const Color(0xFF9A7B1A),
+                          fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           // シーン選択チップ

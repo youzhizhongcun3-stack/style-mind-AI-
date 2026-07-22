@@ -148,4 +148,30 @@ class PointsService {
     final snap = await _users.doc(uid).get();
     return (snap.data()?['bonusGenerations'] as int?) ?? 0;
   }
+
+  /// 100pt消費→限定コーデパターンを解放。ポイント不足ならfalse。
+  static Future<bool> redeemLimitedPatterns() async {
+    final uid = _uid;
+    if (uid == null) return false;
+    final docRef = _users.doc(uid);
+    return FirebaseFirestore.instance.runTransaction((tx) async {
+      final snap = await tx.get(docRef);
+      final points = (snap.data()?['points'] as int?) ?? 0;
+      final already = snap.data()?['limitedPatternsUnlocked'] == true;
+      if (already) return true;
+      if (points < 100) return false;
+      tx.set(docRef, {
+        'points': points - 100,
+        'limitedPatternsUnlocked': true,
+      }, SetOptions(merge: true));
+      return true;
+    });
+  }
+
+  static Future<bool> isLimitedPatternsUnlocked() async {
+    final uid = _uid;
+    if (uid == null) return false;
+    final snap = await _users.doc(uid).get();
+    return snap.data()?['limitedPatternsUnlocked'] == true;
+  }
 }

@@ -611,6 +611,78 @@ const server = http.createServer((req, res) => {
       apiReq.end();
     });
 
+  // おすすめブランド・商品一覧（骨格タイプ・スタイル傾向でパーソナライズ）
+  } else if (req.method === 'POST' && req.url === '/recommended-items') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(body);
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ error: 'リクエストの形式が不正です' }));
+        return;
+      }
+      const skeletonType = parsedBody.skeletonType || '';
+      const styles = (parsedBody.styles || '').split('・').filter(Boolean);
+
+      function buildShopUrls(keyword) {
+        const encoded = encodeURIComponent(keyword);
+        const yahooUrl = encodeURIComponent(`https://shopping.yahoo.co.jp/search?p=${keyword}`);
+        const rakutenUrl = encodeURIComponent(`https://search.rakuten.co.jp/search/mall/${keyword}/`);
+        return [
+          { name: 'Yahoo!ショッピング', icon: '🛍️', url: `https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=3774833&pid=892651346&vc_url=${yahooUrl}` },
+          { name: 'Rakuten Fashion', icon: '🏪', url: `https://hb.afl.rakuten.co.jp/hgc/556d406f.aeda9c3d.556d4070.99ba5cc0/?pc=${rakutenUrl}&link_type=hybrid_url` },
+          { name: 'Amazon', icon: '📦', url: `https://www.amazon.co.jp/s?k=${encoded}&i=fashion&tag=stylemind2026-22` },
+        ];
+      }
+
+      // 2026-07下半期トレンド調査を反映したキュレーションリスト。
+      // 週次のトレンド調査タスク（stylemind-fashion-trend-research）で内容を随時更新していく想定。
+      const CATALOG = [
+        { brand: 'theory', item: 'ストレートテーパードパンツ', price: '¥28,000', category: 'ボトムス', skeletonTypes: ['ストレートタイプ'], styles: ['クワイエットラグジュアリー', 'ミニマル/シンプル'] },
+        { brand: 'ユニクロ', item: 'Uクルーネックカーディガン', price: '¥5,990', category: 'トップス', skeletonTypes: ['ストレートタイプ'], styles: ['ミニマル/シンプル'] },
+        { brand: 'コモンプロジェクト', item: 'アキレスロートップ', price: '¥32,000', category: 'シューズ', skeletonTypes: ['ストレートタイプ'], styles: ['クワイエットラグジュアリー'] },
+        { brand: 'スナイデル', item: 'フリルブラウス', price: '¥12,000', category: 'トップス', skeletonTypes: ['ウェーブタイプ'], styles: ['フェミニン/ガーリー'] },
+        { brand: 'マウジー', item: 'ハイウエストフレアスカート', price: '¥9,900', category: 'ボトムス', skeletonTypes: ['ウェーブタイプ'], styles: ['フェミニン/ガーリー'] },
+        { brand: 'NUGU', item: 'キルティングショルダーバッグ', price: '¥8,900', category: 'バッグ', skeletonTypes: ['ウェーブタイプ'], styles: ['韓国系/オルチャン'] },
+        { brand: 'ZARA', item: 'バタフライ刺繍デニムショーツ', price: '¥5,990', category: 'ボトムス', skeletonTypes: ['ウェーブタイプ'], styles: ['韓国系/オルチャン', 'Y2K/レトロ'] },
+        { brand: 'パタゴニア', item: 'レトロXフリースジャケット', price: '¥24,000', category: 'アウター', skeletonTypes: ['ナチュラルタイプ'], styles: ['ゴープコア/アウトドア'] },
+        { brand: 'カーハートWIP', item: 'デトロイトジャケット', price: '¥26,000', category: 'アウター', skeletonTypes: ['ナチュラルタイプ'], styles: ['カジュアル/アメカジ', 'ストリート'] },
+        { brand: 'アーバンリサーチ', item: 'オーバーサイズニット', price: '¥9,900', category: 'トップス', skeletonTypes: ['ナチュラルタイプ'], styles: ['ミニマル/シンプル'] },
+        { brand: 'シュプリーム', item: 'ボックスロゴフーディ', price: '¥18,000', category: 'トップス', skeletonTypes: [], styles: ['ストリート'] },
+        { brand: 'ステューシー', item: 'スクリプトロゴTシャツ', price: '¥9,900', category: 'トップス', skeletonTypes: [], styles: ['ストリート', 'サブカル/古着'] },
+        { brand: 'メゾンマルジェラ', item: 'Tabiブーツ', price: '¥135,000', category: 'シューズ', skeletonTypes: [], styles: ['モード/アバンギャルド'] },
+        { brand: 'アクネ ストゥディオズ', item: 'オーバーサイズブレザー', price: '¥98,000', category: 'アウター', skeletonTypes: ['ストレートタイプ'], styles: ['モード/アバンギャルド', 'クワイエットラグジュアリー'] },
+        { brand: 'ジャーナルスタンダード', item: 'ヴィンテージ風デニムジャケット', price: '¥15,000', category: 'アウター', skeletonTypes: [], styles: ['サブカル/古着', 'カジュアル/アメカジ'] },
+        { brand: 'ニューバランス', item: '2002R', price: '¥17,600', category: 'シューズ', skeletonTypes: [], styles: ['ストリート', 'カジュアル/アメカジ'] },
+        { brand: 'GU', item: 'バギーデニム', price: '¥3,990', category: 'ボトムス', skeletonTypes: ['ナチュラルタイプ'], styles: ['ストリート', 'カジュアル/アメカジ'] },
+        { brand: 'ロンシャン', item: 'ル・プリアージュ トートバッグ', price: '¥25,000', category: 'バッグ', skeletonTypes: [], styles: ['クワイエットラグジュアリー', 'ミニマル/シンプル'] },
+      ];
+
+      const scored = CATALOG.map(it => {
+        let score = 0;
+        if (skeletonType && it.skeletonTypes.includes(skeletonType)) score += 2;
+        if (it.skeletonTypes.length === 0) score += 1; // 全タイプ向け汎用アイテムは軽く優先
+        const matchedStyles = it.styles.filter(s => styles.includes(s));
+        score += matchedStyles.length * 2;
+        return { ...it, score };
+      });
+      scored.sort((a, b) => b.score - a.score);
+
+      const items = scored.map(it => ({
+        brand: it.brand,
+        item: it.item,
+        price: it.price,
+        category: it.category,
+        shops: buildShopUrls(`${it.brand} ${it.item}`),
+      }));
+
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ items }));
+    });
+
   // 天気取得
   } else if (req.method === 'POST' && req.url === '/weather') {
     let body = '';

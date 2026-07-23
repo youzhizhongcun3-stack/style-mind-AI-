@@ -64,6 +64,7 @@ class PointsService {
 
   /// プロフィール（診断含む）完了時に呼ぶ。招待されたユーザーであれば
   /// 両者に加点する（初回のみ、デバイスIDが同一の場合はブロック）。
+  /// 加点自体はトランザクションで保護し、同時呼び出しによる二重付与を防ぐ。
   static Future<void> awardReferralPointsIfEligible() async {
     final uid = _uid;
     if (uid == null) return;
@@ -73,32 +74,38 @@ class PointsService {
 
     final referredBy = data['referredBy'] as String?;
     if (referredBy == null || referredBy.isEmpty) return;
-    if (data['referralPointsAwarded'] == true) return; // 二重付与防止
+    if (data['referralPointsAwarded'] == true) return; // 早期リターン（確定判定はトランザクション内で行う）
 
     final referrerQuery = await _users.where('referralCode', isEqualTo: referredBy).limit(1).get();
     if (referrerQuery.docs.isEmpty) {
       await docRef.set({'referralPointsAwarded': true}, SetOptions(merge: true));
       return;
     }
-    final referrerDoc = referrerQuery.docs.first;
-    if (referrerDoc.id == uid) {
+    final referrerDocRef = referrerQuery.docs.first.reference;
+    if (referrerDocRef.id == uid) {
       await docRef.set({'referralPointsAwarded': true}, SetOptions(merge: true));
       return;
     }
 
-    // 簡易不正対策：招待した側・された側で端末IDが一致する場合はブロック
     final myDeviceId = getOrCreatePersistedDeviceId();
-    final referrerDeviceId = referrerDoc.data()['deviceId'] as String?;
-    await docRef.set({'deviceId': myDeviceId}, SetOptions(merge: true));
-    final sameDevice = referrerDeviceId != null && referrerDeviceId == myDeviceId;
 
-    if (sameDevice) {
-      await docRef.set({'referralPointsAwarded': true, 'referralBlockedReason': 'same_device'}, SetOptions(merge: true));
-      return;
-    }
+    await FirebaseFirestore.instance.runTransaction((tx) async {
+      final freshSelfSnap = await tx.get(docRef);
+      if (freshSelfSnap.data()?['referralPointsAwarded'] == true) return; // トランザクション内での二重付与防止チェック
 
-    await _users.doc(referrerDoc.id).set({'points': FieldValue.increment(30)}, SetOptions(merge: true));
-    await docRef.set({'points': FieldValue.increment(20), 'referralPointsAwarded': true}, SetOptions(merge: true));
+      final referrerSnap = await tx.get(referrerDocRef);
+      final referrerDeviceId = referrerSnap.data()?['deviceId'] as String?;
+
+      // 簡易不正対策：招待した側・された側で端末IDが一致する場合はブロック
+      final sameDevice = referrerDeviceId != null && referrerDeviceId == myDeviceId;
+      if (sameDevice) {
+        tx.set(docRef, {'deviceId': myDeviceId, 'referralPointsAwarded': true, 'referralBlockedReason': 'same_device'}, SetOptions(merge: true));
+        return;
+      }
+
+      tx.set(referrerDocRef, {'points': FieldValue.increment(30)}, SetOptions(merge: true));
+      tx.set(docRef, {'deviceId': myDeviceId, 'points': FieldValue.increment(20), 'referralPointsAwarded': true}, SetOptions(merge: true));
+    });
   }
 
   static Future<int> getPoints() async {

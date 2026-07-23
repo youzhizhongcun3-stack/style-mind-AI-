@@ -9,6 +9,7 @@ workflows:
         BUNDLE_ID: "com.stylemindai.app"
         XCODE_WORKSPACE: "ios/Runner.xcworkspace"
         XCODE_SCHEME: "Runner"
+        CM_CERTIFICATE_PASSWORD: "StyleMindAI2026Cert!"
       flutter: stable
       xcode: latest
       cocoapods: default

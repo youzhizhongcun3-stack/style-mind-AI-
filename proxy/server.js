@@ -6,6 +6,81 @@ const CLAUDE_API_KEY = process.env.CLAUDE_API_KEY || '';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENWEATHER_API_KEY = process.env.OPENWEATHER_API_KEY || '';
 
+// チャット返答からアイテムをパースする共通ロジック（/chatの重複回避記録と
+// /generate-imageの画像生成プロンプト作成の両方で使うため、モジュール直下に配置）
+function cleanValue(val) {
+  return val
+    .replace(/\*\*/g, '')
+    .replace(/¥[\d,〜~]+(?:万)?(?:前後|程度)?/g, '')
+    .replace(/※[^\n]*/g, '')
+    .replace(/（節約版[^）]*）/g, '')
+    .replace(/または[^\n]*/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+const OUTFIT_LABEL_MAP = [
+  [['トップス', 'シャツ', 'Tシャツ', 'ニット', 'カットソー', 'ポロ'], 'top'],
+  [['ボトムス', 'パンツ', 'デニム', 'ジーンズ', 'ショーツ', 'スカート', 'チノ', 'スラックス'], 'bottom'],
+  [['アウター', 'ジャケット', 'コート', 'パーカー', 'ブルゾン', 'フーディ', 'ダウン', 'ブレザー'], 'outer'],
+  [['靴', 'シューズ', 'スニーカー', 'ブーツ', 'サンダル', 'ローファー', '足元', 'フットウェア'], 'shoes'],
+  [['バッグ', 'カバン', 'バック', 'リュック', 'トート', 'ショルダー', 'クラッチ'], 'bag'],
+  [['時計', 'ウォッチ'], 'watch'],
+  [['リング', 'ネックレス', 'ブレスレット', 'アクセサリー', '小物', 'チェーン', 'ピアス'], 'accessories'],
+  [['ヘアスタイル', '髪型', 'ヘア'], 'hair'],
+  [['カラコン', 'カラーコンタクト', 'コンタクト'], 'contacts'],
+];
+
+function parseOutfitItems(text) {
+  const items = {};
+  const lines = text.split('\n');
+  for (const line of lines) {
+    const colonIdx = line.search(/[：:]/);
+    if (colonIdx === -1) continue;
+    const label = line.substring(0, colonIdx).replace(/[*#\s「」]/g, '');
+    const rawValue = line.substring(colonIdx + 1);
+    const value = cleanValue(rawValue);
+    if (!value || value.length < 2) continue;
+    for (const [keywords, en] of OUTFIT_LABEL_MAP) {
+      if (keywords.some(kw => label.includes(kw))) {
+        if (!items[en]) items[en] = value;
+        break;
+      }
+    }
+  }
+  return items;
+}
+
+// 同じ質問に対してAIが毎回同じ定番アイテムに収束してしまう問題への構造的対策。
+// ランダムな「方向性ヒント」だけだと、対策後も別の1アイテムに偏りが移る
+// (もぐら叩き)ことが監査で判明したため、実際に直近提案したアイテムをカテゴリ別に
+// プロセスメモリ上で記憶し、次のリクエストで「これは避けて」と明示的に伝える。
+// サーバー再起動でリセットされる軽量な仕組み(DBは使わない)。
+const RECENT_SUGGESTIONS_LIMIT = 5;
+const recentSuggestions = { top: [], bottom: [], outer: [], shoes: [], bag: [], accessories: [] };
+
+function recordRecentSuggestions(items) {
+  for (const cat of Object.keys(recentSuggestions)) {
+    const val = items[cat];
+    if (!val) continue;
+    const list = recentSuggestions[cat];
+    if (list[list.length - 1] === val) continue; // 直前と全く同じ文字列の重複記録は避ける
+    list.push(val);
+    if (list.length > RECENT_SUGGESTIONS_LIMIT) list.shift();
+  }
+}
+
+function buildAvoidRepeatContext() {
+  const parts = [];
+  const jpLabel = { top: 'トップス', bottom: 'ボトムス', outer: 'アウター', shoes: '靴', bag: 'バッグ', accessories: 'アクセサリー' };
+  for (const [cat, list] of Object.entries(recentSuggestions)) {
+    if (list.length === 0) continue;
+    parts.push(`${jpLabel[cat]}: ${list.join(' / ')}`);
+  }
+  if (parts.length === 0) return '';
+  return `\n【直近ほかのリクエストで提案したばかりのアイテム（同じ質問への回答は特に、できる限りこれらと違うアイテムを選ぶこと）】\n${parts.join('\n')}`;
+}
+
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -63,6 +138,7 @@ const server = http.createServer((req, res) => {
       const shuffledHints = [...varietyHints].sort(() => Math.random() - 0.5);
       const selectedHints = shuffledHints.slice(0, 2);
       const varietyContext = `\n【今回の提案の方向性（このリクエスト限定のランダム指定、2つとも反映する）】${selectedHints.join(' / ')}`;
+      const avoidRepeatContext = buildAvoidRepeatContext();
 
       const payload = JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
@@ -156,8 +232,9 @@ const server = http.createServer((req, res) => {
 ・カラー最新：ラベンダー/ミントグリーン/オフホワイトが韓国系春夏コーデで人気急上昇。上記の既存カラートレンドと併用してよい
 
 【返答ルール】
-- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}${seasonContext}${varietyContext}
+- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}${seasonContext}${varietyContext}${avoidRepeatContext}
 - 【今回の提案の方向性】は、そのリクエストだけに適用する一時的な指定。2つとも、無理に不自然にならない範囲で必ず反映すること
+- 【直近ほかのリクエストで提案したばかりのアイテム】が示されている場合、そこに書かれたアイテムと同じものを繰り返し提案しないこと。同じカテゴリでも違うブランド・アイテムを選ぶこと
 - NGアイテムが設定されている場合は絶対に提案しない。NGアイテムの代替を提案すること
 - 体型・身長に合わせたシルエット提案をする。例：小柄→クロップドパンツ/ハイウエスト推奨、がっちり→オーバーサイズで体型カバー、細身→レイヤードで立体感を出す
 - 骨格タイプが設定されている場合は、上記【骨格タイプ別シルエットガイド】を体型・身長の提案より優先し、そのタイプが得意なシルエット・素材を軸に提案すること
@@ -197,6 +274,7 @@ const server = http.createServer((req, res) => {
           try {
             const parsed = JSON.parse(data);
             const reply = parsed.content[0].text;
+            recordRecentSuggestions(parseOutfitItems(reply));
             res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
             res.end(JSON.stringify({ reply }));
           } catch (e) {
@@ -266,50 +344,7 @@ const server = http.createServer((req, res) => {
         modelDesc = `Japanese model, ${age}, ${heightDesc}, ${bodyDesc}, gender-neutral appearance${silhouetteDesc}`;
       }
 
-      // Step1: チャットテキストからアイテムをパース
-      function cleanValue(val) {
-        return val
-          .replace(/\*\*/g, '')
-          .replace(/¥[\d,〜~]+(?:万)?(?:前後|程度)?/g, '')
-          .replace(/※[^\n]*/g, '')
-          .replace(/（節約版[^）]*）/g, '')
-          .replace(/または[^\n]*/g, '')
-          .replace(/\s{2,}/g, ' ')
-          .trim();
-      }
-
-      function parseOutfitItems(text) {
-        const items = {};
-        const lines = text.split('\n');
-        const labelMap = [
-          [['トップス', 'シャツ', 'Tシャツ', 'ニット', 'カットソー', 'ポロ'], 'top'],
-          [['ボトムス', 'パンツ', 'デニム', 'ジーンズ', 'ショーツ', 'スカート', 'チノ', 'スラックス'], 'bottom'],
-          [['アウター', 'ジャケット', 'コート', 'パーカー', 'ブルゾン', 'フーディ', 'ダウン', 'ブレザー'], 'outer'],
-          [['靴', 'シューズ', 'スニーカー', 'ブーツ', 'サンダル', 'ローファー', '足元', 'フットウェア'], 'shoes'],
-          [['バッグ', 'カバン', 'バック', 'リュック', 'トート', 'ショルダー', 'クラッチ'], 'bag'],
-          [['時計', 'ウォッチ'], 'watch'],
-          [['リング', 'ネックレス', 'ブレスレット', 'アクセサリー', '小物', 'チェーン', 'ピアス'], 'accessories'],
-          [['ヘアスタイル', '髪型', 'ヘア'], 'hair'],
-          [['カラコン', 'カラーコンタクト', 'コンタクト'], 'contacts'],
-        ];
-
-        for (const line of lines) {
-          const colonIdx = line.search(/[：:]/);
-          if (colonIdx === -1) continue;
-          const label = line.substring(0, colonIdx).replace(/[*#\s「」]/g, '');
-          const rawValue = line.substring(colonIdx + 1);
-          const value = cleanValue(rawValue);
-          if (!value || value.length < 2) continue;
-          for (const [keywords, en] of labelMap) {
-            if (keywords.some(kw => label.includes(kw))) {
-              if (!items[en]) items[en] = value;
-              break;
-            }
-          }
-        }
-        return items;
-      }
-
+      // Step1: チャットテキストからアイテムをパース（cleanValue/parseOutfitItemsはモジュール直下で定義済み）
       const parsedItems = parseOutfitItems(prompt);
       console.log('Parsed outfit items:', parsedItems);
 

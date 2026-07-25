@@ -43,6 +43,22 @@ const server = http.createServer((req, res) => {
       const seasonContext = `\n【現在の季節】${season} ※季節に合わせたアイテム・素材を必ず提案すること`;
       const closetContext = closetSummary ? `\n\n【ユーザーの手持ち服（クローゼット）】\n${closetSummary}\n※手持ち服を活用したコーデ提案を優先すること。新規購入アイテムを追加する場合は手持ち服と相性の良いものを提案すること` : '';
 
+      // 同じような質問でも毎回似たブランド・アイテムに偏ってしまう問題への対策。
+      // 「毎回異なる提案をする」という抽象的な指示だけではAIは同じ定番アイテムに
+      // 収束しがちなため、サーバー側で具体的な方向性をランダムに1つ選んで強制する。
+      const varietyHints = [
+        'バッグの選択肢を広げること。ポーターに偏らず、エコバッグ・サコッシュ・トートバッグ・ボディバッグなど、いつもと違う形状を積極的に検討する',
+        'トップスに、定番ブランド（ユニクロ・ステューシー等）だけでなく、あまり出てこないブランドも1つ取り入れる（例：パレス、アワーレガシー、Aime Leon Dore等）',
+        '差し色として、ベージュ・カーキ・ブラウン系の落ち着いた配色を軸にする',
+        '差し色として、鮮やかな1色（オレンジ・ブルー・イエロー等）をアクセントに入れる',
+        '靴の選択を、定番スニーカー以外（ローファー・サンダル・ブーツ等、季節に応じて）も積極的に検討する',
+        'シンプル・ミニマルな配色（黒・白・グレーの3色以内）でまとめる方向にする',
+        '柄物やオーバーサイズアイテムなど、少し個性的なアイテムを1点取り入れる',
+        'ネックレス・リング・イヤリングなど、アクセサリーで個性を出す提案にする',
+      ];
+      const varietyHint = varietyHints[Math.floor(Math.random() * varietyHints.length)];
+      const varietyContext = `\n【今回の提案の方向性（このリクエスト限定のランダム指定）】${varietyHint}`;
+
       const payload = JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 600,
@@ -71,6 +87,10 @@ const server = http.createServer((req, res) => {
 ・Maison Margiela：Tabiブーツ（つま先二又）、白ラベルに数字、解体的デザイン
 ・ポーター（吉田カバン）タンカー：ナイロン製、ジッパーポケット多数、艶感あるブラック
 ・Longchamp Le Pliage：折りたたみトートバッグ、革ハンドル、シンプルフラップ
+・Fjallraven Kanken：四角いフォルム、狐のロゴワッペン、丈夫なビニロン素材、豊富なカラー展開のリュック
+・BAGGU：ナイロン製の軽量エコバッグ、シンプルな無地、豊富なカラー展開、折りたたんでポーチにもなる
+・Eastpak Padded Pak'r：スクエア型のリュック、パデッド肩ひも、豊富なカラー・柄展開のカジュアルバックパック
+・A.P.C. サコッシュ：薄型のミニショルダーバッグ、シンプルなロゴプレート、スマホと財布程度が入る小型サイズ
 ・クロムハーツ：シルバー925の重厚ジュエリー、十字架・短剣・フルールドリスのモチーフ、ゴシック
 ・カシオ G-Shock DW-5600：四角いデジタル表示、厚みのある黒ラバーベルト、80年代レトロ感
 ・ロレックス サブマリーナー：緑または黒ベゼルの高級ダイバーズウォッチ、メタルブレスレット
@@ -112,7 +132,8 @@ const server = http.createServer((req, res) => {
 ・カラー最新：ラベンダー/ミントグリーン/オフホワイトが韓国系春夏コーデで人気急上昇。上記の既存カラートレンドと併用してよい
 
 【返答ルール】
-- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}${seasonContext}
+- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}${seasonContext}${varietyContext}
+- 【今回の提案の方向性】は、そのリクエストだけに適用する一時的な指定。無理に不自然にならない範囲で必ず反映すること
 - NGアイテムが設定されている場合は絶対に提案しない。NGアイテムの代替を提案すること
 - 体型・身長に合わせたシルエット提案をする。例：小柄→クロップドパンツ/ハイウエスト推奨、がっちり→オーバーサイズで体型カバー、細身→レイヤードで立体感を出す
 - 骨格タイプが設定されている場合は、上記【骨格タイプ別シルエットガイド】を体型・身長の提案より優先し、そのタイプが得意なシルエット・素材を軸に提案すること
@@ -335,6 +356,16 @@ const server = http.createServer((req, res) => {
           'トート': 'canvas tote bag with handles',
           'リュック': 'casual backpack with front pocket and padded straps',
           'バックパック': 'urban backpack with laptop compartment, minimal design',
+          'fjallraven kanken': 'square-shaped boxy backpack, vinylon fabric, small fox logo patch, roll-top style flap, colorful casual design',
+          'kanken': 'square-shaped boxy backpack, vinylon fabric, small fox logo patch, colorful casual design',
+          'カンケン': 'square-shaped boxy backpack, vinylon fabric, small fox logo patch, colorful casual design',
+          'baggu': 'lightweight nylon eco bag, simple solid color, foldable tote with thin straps',
+          'バグゥ': 'lightweight nylon eco bag, simple solid color, foldable tote with thin straps',
+          'エコバッグ': 'lightweight nylon foldable tote bag, simple solid color',
+          'eastpak': 'square boxy casual backpack, padded shoulder straps, colorful or patterned fabric',
+          'イーストパック': 'square boxy casual backpack, padded shoulder straps, colorful or patterned fabric',
+          'サコッシュ': 'thin flat mini crossbody bag, simple logo plate, small size for phone and wallet only',
+          'sacoche': 'thin flat mini crossbody bag, simple logo plate, small size for phone and wallet only',
           'クラッチ': 'slim clutch bag held under arm, minimal design',
           'ショルダーバッグ': 'small shoulder bag with adjustable strap, crossbody style',
           'サコッシュ': 'thin flat crossbody bag with single zip, lightweight nylon',

@@ -18,6 +18,7 @@ import 'skeleton_diagnosis_screen.dart';
 import 'points_service.dart';
 import 'points_screen.dart';
 import 'recommended_items_screen.dart';
+import 'curated_looks_screen.dart';
 import 'saved_screen.dart';
 import 'purchase_service.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
@@ -1763,6 +1764,19 @@ class _ChatScreenState extends State<ChatScreen> {
               Navigator.push(context, MaterialPageRoute(
                 builder: (_) => RecommendedItemsScreen(userProfile: widget.userProfile),
               ));
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.auto_awesome, color: Colors.white),
+            tooltip: 'あなたにおすすめのコーデ',
+            onPressed: () async {
+              final prompt = await Navigator.push<String>(context, MaterialPageRoute(
+                builder: (_) => CuratedLooksScreen(userProfile: widget.userProfile),
+              ));
+              if (prompt != null && mounted) {
+                _controller.text = prompt;
+                _sendMessage();
+              }
             },
           ),
           IconButton(

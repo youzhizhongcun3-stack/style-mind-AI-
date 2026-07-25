@@ -45,19 +45,24 @@ const server = http.createServer((req, res) => {
 
       // 同じような質問でも毎回似たブランド・アイテムに偏ってしまう問題への対策。
       // 「毎回異なる提案をする」という抽象的な指示だけではAIは同じ定番アイテムに
-      // 収束しがちなため、サーバー側で具体的な方向性をランダムに1つ選んで強制する。
+      // 収束しがちなため、サーバー側で具体的な方向性をランダムに選んで強制する。
+      // ヒントを1個だけ選ぶ方式だと、狙ったカテゴリ（例：靴）にヒットする確率が
+      // 1/8しかなく、ヒットしなかった大半のリクエストでは結局デフォルトの定番
+      // アイテム（Nike Air Force 1、Longchamp Le Pliage等）に収束してしまうことが
+      // 監査で判明したため、2個を重複なく選んで反映率を倍にする。
       const varietyHints = [
-        'バッグの選択肢を広げること。ポーターに偏らず、エコバッグ・サコッシュ・トートバッグ・ボディバッグなど、いつもと違う形状を積極的に検討する',
+        'バッグの選択肢を広げること。ポーターやロンシャンに偏らず、エコバッグ・サコッシュ・トートバッグ・ボディバッグ・かごバッグ・マークジェイコブスのトートなど、いつもと違う形状を積極的に検討する',
         'トップスに、定番ブランド（ユニクロ・ステューシー等）だけでなく、あまり出てこないブランドも1つ取り入れる（例：パレス、アワーレガシー、Aime Leon Dore等）',
         '差し色として、ベージュ・カーキ・ブラウン系の落ち着いた配色を軸にする',
         '差し色として、鮮やかな1色（オレンジ・ブルー・イエロー等）をアクセントに入れる',
-        '靴の選択を、定番スニーカー以外（ローファー・サンダル・ブーツ等、季節に応じて）も積極的に検討する',
+        '靴の選択を、Nike Air Force 1に偏らず、Adidas Samba・Stan Smith・New Balance・ローファー・サンダル・ブーツ等、季節に応じて積極的に検討する',
         'シンプル・ミニマルな配色（黒・白・グレーの3色以内）でまとめる方向にする',
         '柄物やオーバーサイズアイテムなど、少し個性的なアイテムを1点取り入れる',
         'ネックレス・リング・イヤリングなど、アクセサリーで個性を出す提案にする',
       ];
-      const varietyHint = varietyHints[Math.floor(Math.random() * varietyHints.length)];
-      const varietyContext = `\n【今回の提案の方向性（このリクエスト限定のランダム指定）】${varietyHint}`;
+      const shuffledHints = [...varietyHints].sort(() => Math.random() - 0.5);
+      const selectedHints = shuffledHints.slice(0, 2);
+      const varietyContext = `\n【今回の提案の方向性（このリクエスト限定のランダム指定、2つとも反映する）】${selectedHints.join(' / ')}`;
 
       const payload = JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
@@ -91,6 +96,9 @@ const server = http.createServer((req, res) => {
 ・BAGGU：ナイロン製の軽量エコバッグ、シンプルな無地、豊富なカラー展開、折りたたんでポーチにもなる
 ・Eastpak Padded Pak'r：スクエア型のリュック、パデッド肩ひも、豊富なカラー・柄展開のカジュアルバックパック
 ・A.P.C. サコッシュ：薄型のミニショルダーバッグ、シンプルなロゴプレート、スマホと財布程度が入る小型サイズ
+・マーク ジェイコブス ザ・トートバッグ：キャンバス地に大きめロゴプリント、しっかりした台形フォルム、太めのウェビングハンドル
+・かごバッグ（バスケットバッグ）：天然素材の編み込みバスケット型、丸みのあるフォルム、夏の定番フェミニンアイテム
+・フルラ：コンパクトな本革ハンドバッグ、メタルロゴプレート、上品で女性らしい佇まい
 ・クロムハーツ：シルバー925の重厚ジュエリー、十字架・短剣・フルールドリスのモチーフ、ゴシック
 ・カシオ G-Shock DW-5600：四角いデジタル表示、厚みのある黒ラバーベルト、80年代レトロ感
 ・ロレックス サブマリーナー：緑または黒ベゼルの高級ダイバーズウォッチ、メタルブレスレット
@@ -133,7 +141,7 @@ const server = http.createServer((req, res) => {
 
 【返答ルール】
 - ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}${seasonContext}${varietyContext}
-- 【今回の提案の方向性】は、そのリクエストだけに適用する一時的な指定。無理に不自然にならない範囲で必ず反映すること
+- 【今回の提案の方向性】は、そのリクエストだけに適用する一時的な指定。2つとも、無理に不自然にならない範囲で必ず反映すること
 - NGアイテムが設定されている場合は絶対に提案しない。NGアイテムの代替を提案すること
 - 体型・身長に合わせたシルエット提案をする。例：小柄→クロップドパンツ/ハイウエスト推奨、がっちり→オーバーサイズで体型カバー、細身→レイヤードで立体感を出す
 - 骨格タイプが設定されている場合は、上記【骨格タイプ別シルエットガイド】を体型・身長の提案より優先し、そのタイプが得意なシルエット・素材を軸に提案すること
@@ -370,6 +378,11 @@ const server = http.createServer((req, res) => {
           'ショルダーバッグ': 'small shoulder bag with adjustable strap, crossbody style',
           'サコッシュ': 'thin flat crossbody bag with single zip, lightweight nylon',
           'ボストンバッグ': 'cylindrical duffle bag with top handles and shoulder strap',
+          'マークジェイコブス': 'canvas tote bag with bold logo print, structured trapezoid shape, thick webbing handles',
+          'ザ・トートバッグ': 'canvas tote bag with bold logo print, structured trapezoid shape, thick webbing handles',
+          'かごバッグ': 'straw woven basket bag with rounded shape and top handles, natural texture',
+          'バスケットバッグ': 'straw woven basket bag with rounded shape and top handles, natural texture',
+          'フルラ': 'compact structured leather handbag with metal logo plate, top handle',
         },
         watch: {
           'g-shock': 'square black digital watch thick rubber strap',

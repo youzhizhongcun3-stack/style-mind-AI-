@@ -377,12 +377,20 @@ const server = http.createServer((req, res) => {
         },
       };
 
+      // "Stüssy"のようなブランド名の装飾的なウムラウト・アクセント記号を除去して
+      // 辞書のプレーンASCII表記（'stussy'等）とマッチできるようにする。
+      // これが無いと、AIが正式なブランド表記（ü等）を使った時だけ変換に失敗し、
+      // 生成画像にロゴ文字をそのまま描画させてしまい文字化けの原因になる。
+      function stripDiacritics(s) {
+        return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+      }
+
       function toVisual(text, category) {
         if (!text) return text;
-        const lower = text.toLowerCase();
+        const lower = stripDiacritics(text.toLowerCase());
         const map = brandToVisual[category] || {};
         for (const [key, visual] of Object.entries(map)) {
-          if (lower.includes(key.toLowerCase())) return visual;
+          if (lower.includes(stripDiacritics(key.toLowerCase()))) return visual;
         }
         // マッチしない場合はそのまま（日本語でもDALL-E 3は理解できる）
         return text;

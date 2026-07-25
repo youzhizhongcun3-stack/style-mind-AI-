@@ -1,6 +1,7 @@
 # APIキー・環境変数ファイル（GitHubにアップロード禁止）
 .env
 proxy/起動手順.txt
+proxy/firebase-service-account.json
 
 # Node.js
 node_modules/

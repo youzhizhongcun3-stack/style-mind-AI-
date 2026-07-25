@@ -62,6 +62,13 @@ class PointsService {
     await docRef.set({'referredBy': refCode}, SetOptions(merge: true));
   }
 
+  // 1つの紹介コードあたりの累計成功紹介数の上限（セーフティバルブ）。
+  // 大量の偽アカウントを作って無制限にポイントを稼がれることを防ぐための
+  // 技術的な安全装置であり、通常の紹介活動を妨げない十分大きい値にしてある。
+  // 上限に達しても招待された側の特典には影響させず、招待した側への追加
+  // 加点だけを止める（新規ユーザーが不利益を受けないようにするため）。
+  static const int _referrerLifetimeCap = 50;
+
   /// プロフィール（診断含む）完了時に呼ぶ。招待されたユーザーであれば
   /// 両者に加点する（初回のみ、デバイスIDが同一の場合はブロック）。
   /// 加点自体はトランザクションで保護し、同時呼び出しによる二重付与を防ぐ。
@@ -89,6 +96,16 @@ class PointsService {
 
     final myDeviceId = getOrCreatePersistedDeviceId();
 
+    // トランザクション外での事前チェック（Flutterのトランザクションはクエリの
+    // get()に対応していないドキュメント単位のgetのみのため、ここで判定する。
+    // 同時実行によるわずかな超過は許容できる範囲のセーフティバルブとして許容）
+    final awardedCountSnap = await _users
+        .where('referredBy', isEqualTo: referredBy)
+        .where('referralPointsAwarded', isEqualTo: true)
+        .limit(_referrerLifetimeCap)
+        .get();
+    final referrerCapReached = awardedCountSnap.docs.length >= _referrerLifetimeCap;
+
     await FirebaseFirestore.instance.runTransaction((tx) async {
       final freshSelfSnap = await tx.get(docRef);
       if (freshSelfSnap.data()?['referralPointsAwarded'] == true) return; // トランザクション内での二重付与防止チェック
@@ -100,6 +117,11 @@ class PointsService {
       final sameDevice = referrerDeviceId != null && referrerDeviceId == myDeviceId;
       if (sameDevice) {
         tx.set(docRef, {'deviceId': myDeviceId, 'referralPointsAwarded': true, 'referralBlockedReason': 'same_device'}, SetOptions(merge: true));
+        return;
+      }
+
+      if (referrerCapReached) {
+        tx.set(docRef, {'deviceId': myDeviceId, 'points': FieldValue.increment(20), 'referralPointsAwarded': true, 'referralBlockedReason': 'referrer_cap_reached'}, SetOptions(merge: true));
         return;
       }
 

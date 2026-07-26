@@ -177,7 +177,11 @@ const server = http.createServer((req, res) => {
 ・フルラ：コンパクトな本革ハンドバッグ、メタルロゴプレート、上品で女性らしい佇まい
 ・クロムハーツ：シルバー925の重厚ジュエリー、十字架・短剣・フルールドリスのモチーフ、ゴシック
 ・カシオ G-Shock DW-5600：四角いデジタル表示、厚みのある黒ラバーベルト、80年代レトロ感
-・ロレックス サブマリーナー：緑または黒ベゼルの高級ダイバーズウォッチ、メタルブレスレット
+・カシオ エディフィス：スポーティで先進的なデザインの3針アナログ、金属ベルト、20代男性のビジネス〜オフィスカジュアル向け高コスパブランド
+・シチズン アテッサ：日本製ビジネスウォッチ、シンプルな3針、シルバー×ブラック文字盤、価格帯は控えめで新社会人にも人気
+・ダニエル ウェリントン：薄型ミニマルデザイン、レザーまたはメッシュベルト、男女問わずSNSで人気の定番オフィス向け時計
+・タイメックス：シンプルで手頃な価格、カジュアル〜オフィスカジュアルまで幅広く使える万能時計
+・ロレックス サブマリーナー：緑または黒ベゼルの高級ダイバーズウォッチ、メタルブレスレット（価格が非常に高いため、若い世代・予算重視の提案では基本的に避け、上記のような手頃なブランドを優先すること）
 ・Polo Ralph Lauren：胸に小さなポロプレイヤー刺繍、定番ポロシャツ・チノパン
 ・Lacoste：胸に小さなワニ（クロコダイル）刺繍のポロシャツ
 
@@ -440,6 +444,14 @@ const server = http.createServer((req, res) => {
           'g-shock': 'square black digital watch thick rubber strap',
           'gショック': 'square black digital watch thick rubber strap',
           'g shock': 'square black digital watch thick rubber strap',
+          'edifice': 'sporty analog watch with metal bracelet, sleek modern chronograph face',
+          'エディフィス': 'sporty analog watch with metal bracelet, sleek modern chronograph face',
+          'attesa': 'simple business analog watch, silver metal bracelet, clean white dial',
+          'アテッサ': 'simple business analog watch, silver metal bracelet, clean white dial',
+          'daniel wellington': 'slim minimalist analog watch with leather strap, small round face',
+          'ダニエルウェリントン': 'slim minimalist analog watch with leather strap, small round face',
+          'timex': 'simple casual analog watch, canvas or leather strap',
+          'タイメックス': 'simple casual analog watch, canvas or leather strap',
           'rolex': 'luxury metal bracelet watch round dial',
           'ロレックス': 'luxury metal bracelet watch round dial',
         },
@@ -481,12 +493,64 @@ const server = http.createServer((req, res) => {
         return s.normalize('NFD').replace(/[̀-ͯ]/g, '');
       }
 
+      // 【重要】brandToVisualの各テンプレートは元々「色固定」の説明文だったため、
+      // AIが実際に指定した色（例：黒）と無関係に、テンプレートのデフォルト色
+      // （例：白）で画像が生成されてしまうバグがあった（チャットでは黒なのに
+      // 画像は白、というユーザー報告で発覚）。実際のテキストから色を抽出し、
+      // テンプレート内の色をその色に置き換えることで一致させる。
+      const JP_TO_EN_COLOR = [
+        ['オフホワイト', 'off-white'], ['オフブラック', 'off-black'],
+        ['チャコールグレー', 'charcoal grey'], ['チャコール', 'charcoal grey'],
+        ['モスグリーン', 'moss green'], ['カーキ', 'khaki'],
+        ['コバルトブルー', 'cobalt blue'], ['ネイビー', 'navy'],
+        ['ベージュ', 'beige'], ['テラコッタ', 'terracotta'],
+        ['ラベンダー', 'lavender'], ['ミントグリーン', 'mint green'], ['ミント', 'mint green'],
+        ['キャメル', 'camel'], ['チョコ', 'dark brown'],
+        ['バーガンディ', 'burgundy'], ['ワインレッド', 'wine red'],
+        ['オリーブ', 'olive'], ['クリーム', 'cream'], ['タン', 'tan'],
+        ['シルバー', 'silver'], ['ゴールド', 'gold'],
+        ['ホワイト', 'white'], ['白', 'white'],
+        ['ブラック', 'black'], ['黒', 'black'],
+        ['グレー', 'grey'], ['グレイ', 'grey'],
+        ['ブラウン', 'brown'], ['茶色', 'brown'],
+        ['レッド', 'red'], ['赤', 'red'],
+        ['ブルー', 'blue'], ['青', 'blue'],
+        ['グリーン', 'green'], ['緑', 'green'],
+        ['ピンク', 'pink'], ['パープル', 'purple'], ['紫', 'purple'],
+        ['イエロー', 'yellow'], ['黄色', 'yellow'],
+        ['オレンジ', 'orange'],
+      ];
+      const ENGLISH_COLOR_WORDS = [
+        'off-white', 'off-black', 'charcoal grey', 'moss green', 'cobalt blue',
+        'wine red', 'dark brown', 'mint green',
+        'white', 'black', 'grey', 'gray', 'navy', 'beige', 'brown', 'red', 'blue',
+        'green', 'pink', 'purple', 'yellow', 'orange', 'tan', 'cream', 'khaki',
+        'silver', 'gold', 'burgundy', 'olive', 'camel', 'terracotta', 'lavender',
+      ];
+
+      function extractColor(text) {
+        for (const [jp, en] of JP_TO_EN_COLOR) {
+          if (text.includes(jp)) return en;
+        }
+        return null;
+      }
+
+      function applyColorOverride(visual, color) {
+        if (!color) return visual;
+        for (const word of ENGLISH_COLOR_WORDS) {
+          const re = new RegExp('\\b' + word.replace(/[- ]/g, '[- ]?') + '\\b', 'i');
+          if (re.test(visual)) return visual.replace(re, color);
+        }
+        return `${color} ${visual}`;
+      }
+
       function toVisual(text, category) {
         if (!text) return text;
         const lower = stripDiacritics(text.toLowerCase());
         const map = brandToVisual[category] || {};
+        const color = extractColor(text);
         for (const [key, visual] of Object.entries(map)) {
-          if (lower.includes(stripDiacritics(key.toLowerCase()))) return visual;
+          if (lower.includes(stripDiacritics(key.toLowerCase()))) return applyColorOverride(visual, color);
         }
         // マッチしない場合はそのまま（日本語でもDALL-E 3は理解できる）
         return text;

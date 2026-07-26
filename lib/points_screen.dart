@@ -37,14 +37,22 @@ class _PointsScreenState extends State<PointsScreen> {
   }
 
   Future<void> _load() async {
-    final code = await PointsService.ensureReferralCode();
-    final points = await PointsService.getPoints();
-    if (!mounted) return;
-    setState(() {
-      _referralCode = code;
-      _points = points;
-      _loading = false;
-    });
+    try {
+      final code = await PointsService.ensureReferralCode();
+      final points = await PointsService.getPoints();
+      if (!mounted) return;
+      setState(() {
+        _referralCode = code;
+        _points = points;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('読み込みに失敗しました。もう一度お試しください')),
+      );
+    }
   }
 
   void _shareReferral() {

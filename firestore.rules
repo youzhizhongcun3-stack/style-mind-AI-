@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ユーザーのプロフィール本体：紹介コードの重複確認・招待元検索のため、
+    // 認証済みユーザーであれば読み取りを許可する（書き込みは本人のみ）。
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    // メッセージ履歴・クローゼット等のサブコレクションは、これまで通り本人のみ
+    match /users/{userId}/{subcollection}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /curatedLooks/{lookId} {
+      allow read: if request.auth != null;
+      allow update: if request.auth != null;
+    }
+  }
+}

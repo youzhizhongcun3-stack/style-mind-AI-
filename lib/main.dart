@@ -16,10 +16,9 @@ import 'firebase_options.dart';
 import 'closet_screen.dart';
 import 'skeleton_diagnosis_screen.dart';
 import 'points_service.dart';
-import 'points_screen.dart';
-import 'recommended_items_screen.dart';
-import 'curated_looks_screen.dart';
-import 'saved_screen.dart';
+import 'discover_hub_screen.dart';
+import 'closet_hub_screen.dart';
+import 'my_page_screen.dart';
 import 'purchase_service.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
@@ -263,7 +262,66 @@ class _ProfileGateState extends State<ProfileGate> {
         },
       );
     }
-    return ChatScreen(userProfile: _profile!);
+    return MainTabShell(userProfile: _profile!);
+  }
+}
+
+/// アプリ全体の画面構成。以前はチャット画面のアプリバーに全機能のアイコンを
+/// 詰め込んでいたが、機能が増えるにつれ分かりにくくなったため、
+/// 下部タブバー（チャット／発見／クローゼット／マイページ）に再編成した。
+class MainTabShell extends StatefulWidget {
+  final UserProfile userProfile;
+  const MainTabShell({super.key, required this.userProfile});
+
+  @override
+  State<MainTabShell> createState() => _MainTabShellState();
+}
+
+class _MainTabShellState extends State<MainTabShell> {
+  int _currentIndex = 0;
+  final GlobalKey<_ChatScreenState> _chatKey = GlobalKey<_ChatScreenState>();
+
+  void _goToChatWithPrompt(String prompt) {
+    setState(() => _currentIndex = 0);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _chatKey.currentState?.sendPromptExternally(prompt);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screens = [
+      ChatScreen(key: _chatKey, userProfile: widget.userProfile),
+      DiscoverHubScreen(
+        userProfile: widget.userProfile,
+        onSendPrompt: _goToChatWithPrompt,
+        onReturnedFromPoints: () => _chatKey.currentState?.refreshStatusFromOutside(),
+      ),
+      const ClosetHubScreen(),
+      MyPageScreen(
+        userProfile: widget.userProfile,
+        onConfirmDeleteAccount: (ctx) async {
+          await _chatKey.currentState?.confirmDeleteAccountExternally(ctx);
+        },
+      ),
+    ];
+
+    return Scaffold(
+      body: IndexedStack(index: _currentIndex, children: screens),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        onTap: (i) => setState(() => _currentIndex = i),
+        selectedItemColor: const Color(0xFF3C9A85),
+        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'チャット'),
+          BottomNavigationBarItem(icon: Icon(Icons.explore_outlined), label: '発見'),
+          BottomNavigationBarItem(icon: Icon(Icons.checkroom_outlined), label: 'クローゼット'),
+          BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'マイページ'),
+        ],
+      ),
+    );
   }
 }
 
@@ -941,6 +999,19 @@ class _ChatScreenState extends State<ChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _showDisclaimerIfNeeded());
   }
 
+  /// 「発見」タブなど、他のタブから戻ってきた際の状態更新（ポイント消費等の反映）に使う。
+  void refreshStatusFromOutside() {
+    _loadLimitedPatternsStatus();
+    _refreshFreeStatus();
+  }
+
+  /// 「発見」タブのコーデ一覧から「自分の骨格・体型で見る」が押された時に、
+  /// チャットタブ側でその文言を送信するための公開メソッド。
+  void sendPromptExternally(String prompt) {
+    _controller.text = prompt;
+    _sendMessage();
+  }
+
   Future<void> _loadLimitedPatternsStatus() async {
     final unlocked = await PointsService.isLimitedPatternsUnlocked();
     if (!mounted) return;
@@ -1039,6 +1110,11 @@ class _ChatScreenState extends State<ChatScreen> {
         _scrollToBottom();
       }
     } catch (_) {}
+  }
+
+  /// マイページなど、他のタブ・画面からアカウント削除確認を呼び出すための公開メソッド。
+  Future<void> confirmDeleteAccountExternally(BuildContext context) async {
+    await _confirmDeleteAccount(context);
   }
 
   Future<void> _confirmDeleteAccount(BuildContext context) async {
@@ -1715,81 +1791,9 @@ class _ChatScreenState extends State<ChatScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(Icons.bookmark, color: Colors.white),
-            tooltip: '保存したコーデ',
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => const SavedScreen(),
-              ));
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.wb_sunny, color: Colors.white),
             tooltip: '今日の天気コーデ',
             onPressed: () => _sendWeatherCoordinate(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.checkroom, color: Colors.white),
-            tooltip: 'クローゼット',
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => const ClosetScreen(),
-              ));
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.tune, color: Colors.white),
-            tooltip: 'スタイル設定',
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => ProfileScreen(onComplete: (_) => Navigator.pop(context)),
-              ));
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.card_giftcard, color: Colors.white),
-            tooltip: '招待・ポイント',
-            onPressed: () async {
-              await Navigator.push(context, MaterialPageRoute(
-                builder: (_) => PointsScreen(userProfile: widget.userProfile),
-              ));
-              _loadLimitedPatternsStatus();
-              _refreshFreeStatus();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.style_outlined, color: Colors.white),
-            tooltip: 'あなたへのおすすめ',
-            onPressed: () {
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => RecommendedItemsScreen(userProfile: widget.userProfile),
-              ));
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.auto_awesome, color: Colors.white),
-            tooltip: 'あなたにおすすめのコーデ',
-            onPressed: () async {
-              final prompt = await Navigator.push<String>(context, MaterialPageRoute(
-                builder: (_) => CuratedLooksScreen(userProfile: widget.userProfile),
-              ));
-              if (prompt != null && mounted) {
-                _controller.text = prompt;
-                _sendMessage();
-              }
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white),
-            tooltip: 'ログアウト',
-            onPressed: () async {
-              await FirebaseAuth.instance.signOut();
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_forever, color: Colors.white),
-            tooltip: 'アカウントを削除',
-            onPressed: () => _confirmDeleteAccount(context),
           ),
         ],
       ),

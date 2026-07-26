@@ -255,6 +255,8 @@ const server = http.createServer((req, res) => {
 - コーデ提案時にアウター・ジャケットを含める場合は必ずテキストに「アウター：〇〇（ブランド・商品名・価格目安）」と明示すること。画像に出るのにテキストに記載なしは絶対にNG
 - コーデ提案には必ずバッグを含めること。バッグは省略禁止。ブランド名・商品名・価格を明記すること
 - 時計・シルバーリング・ネックレス・ベルトなどのアクセサリーをコーデに加える場合は必ずテキストに記載し、画像生成にも必ず反映すること。テキストに書いたアクセサリーが画像に出ないのは絶対にNG
+- トップスをボトムスにタックイン（裾を入れる）するコーデを提案する場合、特に仕事・オフィスカジュアルなどフォーマル度が高いシーンでは、ベルトも一緒に提案すること（タックインしているのにベルトが無いと着こなしとして不完全に見えるため）
+- 💡から始まるような補足コメント・スタイリングTipsを添える場合は、必ず「今回提案した具体的なアイテム」に直接関係する内容にすること。一般論・当たり障りのないアドバイス（例：「トレンドアイテムは1点だけにしましょう」等）を、その提案と無関係に付け加えることは禁止
 - 提案したアイテム（アウター・バッグ・アクセサリー全て）は必ず画像生成にも反映されること
 - 【価格バランスルール】アウター・ジャケットが¥30,000以上の高額アイテムの場合、インナー（Tシャツ・シャツ等）は必ずユニクロ・GU・ZARAなど¥5,000以下のプチプラも選択肢として提案すること。例：「インナー：アクネ スタジオズ Tシャツ ¥25,000 または ユニクロ クルーネックT ¥1,500（節約版）」のように両方提示する`,
         messages: recentMessages,
@@ -812,6 +814,8 @@ const server = http.createServer((req, res) => {
           { name: 'Yahoo!ショッピング', icon: '🛍️', url: `https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=3774833&pid=892651346&vc_url=${yahooUrl}` },
           { name: 'Rakuten Fashion', icon: '🏪', url: `https://hb.afl.rakuten.co.jp/hgc/556d406f.aeda9c3d.556d4070.99ba5cc0/?pc=${rakutenUrl}&link_type=hybrid_url` },
           { name: 'Amazon', icon: '📦', url: `https://www.amazon.co.jp/s?k=${encoded}&i=fashion&tag=stylemind2026-22` },
+          { name: 'セカンドストリート', icon: '♻️', url: 'https://px.a8.net/svt/ejp?a8mat=4B7SH1+4FK6WI+4J34+HWXLD' },
+          { name: 'WEAR（コーデ参考）', icon: '📸', url: `https://wear.jp/search/?q=${encoded}` },
         ];
       }
 

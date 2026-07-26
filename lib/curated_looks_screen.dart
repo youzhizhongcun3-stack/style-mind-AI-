@@ -173,6 +173,8 @@ class _CuratedLooksScreenState extends State<CuratedLooksScreen> {
       {'icon': '🛍️', 'name': 'Yahoo!ショッピング', 'url': 'https://ck.jp.ap.valuecommerce.com/servlet/referral?sid=3774833&pid=892651346&vc_url=$yahooUrl'},
       {'icon': '🏪', 'name': 'Rakuten Fashion', 'url': 'https://hb.afl.rakuten.co.jp/hgc/556d406f.aeda9c3d.556d4070.99ba5cc0/?pc=$rakutenUrl&link_type=hybrid_url'},
       {'icon': '📦', 'name': 'Amazon', 'url': 'https://www.amazon.co.jp/s?k=$encoded&i=fashion&tag=stylemind2026-22'},
+      {'icon': '♻️', 'name': 'セカンドストリート', 'url': 'https://px.a8.net/svt/ejp?a8mat=4B7SH1+4FK6WI+4J34+HWXLD'},
+      {'icon': '📸', 'name': 'WEAR（コーデ参考）', 'url': 'https://wear.jp/search/?q=$encoded'},
     ];
   }
 

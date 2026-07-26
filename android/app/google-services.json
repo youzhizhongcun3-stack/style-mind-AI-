@@ -29,6 +29,49 @@
             {
               "client_id": "285738266939-6erhge53lsdhepchr7nkfajk8itt4ads.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "285738266939-tklds7llt32alqqrihvokjmhenkv6kpm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.stylemindAi"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:285738266939:android:ad4235f9641cdf8f0f471e",
+        "android_client_info": {
+          "package_name": "com.stylemindai.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "285738266939-6erhge53lsdhepchr7nkfajk8itt4ads.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5cGZuK1-V8Ncc4QyfUPGg0p3Vu5UbJfA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "285738266939-6erhge53lsdhepchr7nkfajk8itt4ads.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "285738266939-tklds7llt32alqqrihvokjmhenkv6kpm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.stylemindAi"
+              }
             }
           ]
         }

@@ -52,7 +52,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyD5cGZuK1-V8Ncc4QyfUPGg0p3Vu5UbJfA',
-    appId: '1:285738266939:android:c2b2c981c3cbf26d0f471e',
+    appId: '1:285738266939:android:ad4235f9641cdf8f0f471e',
     messagingSenderId: '285738266939',
     projectId: 'stylemind-ai-d14ec',
     storageBucket: 'stylemind-ai-d14ec.firebasestorage.app',

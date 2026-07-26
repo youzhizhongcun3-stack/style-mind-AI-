@@ -94,9 +94,10 @@ const server = http.createServer((req, res) => {
 
   // チャット
   if (req.method === 'POST' && req.url === '/chat') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let bodyChunks = [];
+    req.on('data', chunk => { bodyChunks.push(chunk); });
     req.on('end', () => {
+      const body = Buffer.concat(bodyChunks).toString('utf8');
       let parsedBody;
       try {
         parsedBody = JSON.parse(body);
@@ -272,9 +273,10 @@ const server = http.createServer((req, res) => {
       };
 
       const apiReq = https.request(options, (apiRes) => {
-        let data = '';
-        apiRes.on('data', chunk => { data += chunk; });
+        let dataChunks = [];
+        apiRes.on('data', chunk => { dataChunks.push(chunk); });
         apiRes.on('end', () => {
+          const data = Buffer.concat(dataChunks).toString('utf8');
           try {
             const parsed = JSON.parse(data);
             const reply = parsed.content[0].text;
@@ -299,9 +301,10 @@ const server = http.createServer((req, res) => {
 
   // 画像生成
   } else if (req.method === 'POST' && req.url === '/generate-image') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let bodyChunks = [];
+    req.on('data', chunk => { bodyChunks.push(chunk); });
     req.on('end', () => {
+      const body = Buffer.concat(bodyChunks).toString('utf8');
       let parsedBody;
       try {
         parsedBody = JSON.parse(body);
@@ -594,9 +597,10 @@ const server = http.createServer((req, res) => {
           };
 
           const imageReq = https.request(imageOptions, (imageRes) => {
-            let imageData = '';
-            imageRes.on('data', chunk => { imageData += chunk; });
+            let imageDataChunks = [];
+            imageRes.on('data', chunk => { imageDataChunks.push(chunk); });
             imageRes.on('end', () => {
+              const imageData = Buffer.concat(imageDataChunks).toString('utf8');
               try {
                 const parsed = JSON.parse(imageData);
                 if (parsed.error) {
@@ -645,9 +649,10 @@ const server = http.createServer((req, res) => {
 
   // 服の写真解析（GPT-4o Vision）
   } else if (req.method === 'POST' && req.url === '/analyze-clothing') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let bodyChunks = [];
+    req.on('data', chunk => { bodyChunks.push(chunk); });
     req.on('end', () => {
+      const body = Buffer.concat(bodyChunks).toString('utf8');
       let parsedBody;
       try {
         parsedBody = JSON.parse(body);
@@ -682,9 +687,10 @@ const server = http.createServer((req, res) => {
       };
 
       const apiReq = https.request(options, (apiRes) => {
-        let data = '';
-        apiRes.on('data', chunk => { data += chunk; });
+        let dataChunks = [];
+        apiRes.on('data', chunk => { dataChunks.push(chunk); });
         apiRes.on('end', () => {
+          const data = Buffer.concat(dataChunks).toString('utf8');
           try {
             const parsed = JSON.parse(data);
             const text = parsed.choices[0].message.content;
@@ -709,9 +715,10 @@ const server = http.createServer((req, res) => {
 
   // 全身コーデ写真の解析・提案（2026-07-20追加）
   } else if (req.method === 'POST' && req.url === '/analyze-outfit') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let bodyChunks = [];
+    req.on('data', chunk => { bodyChunks.push(chunk); });
     req.on('end', () => {
+      const body = Buffer.concat(bodyChunks).toString('utf8');
       let parsedBody;
       try {
         parsedBody = JSON.parse(body);
@@ -760,9 +767,10 @@ const server = http.createServer((req, res) => {
       };
 
       const apiReq = https.request(options, (apiRes) => {
-        let data = '';
-        apiRes.on('data', chunk => { data += chunk; });
+        let dataChunks = [];
+        apiRes.on('data', chunk => { dataChunks.push(chunk); });
         apiRes.on('end', () => {
+          const data = Buffer.concat(dataChunks).toString('utf8');
           try {
             const parsed = JSON.parse(data);
             const reply = parsed.choices[0].message.content;
@@ -781,9 +789,10 @@ const server = http.createServer((req, res) => {
 
   // おすすめブランド・商品一覧（骨格タイプ・スタイル傾向でパーソナライズ）
   } else if (req.method === 'POST' && req.url === '/recommended-items') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let bodyChunks = [];
+    req.on('data', chunk => { bodyChunks.push(chunk); });
     req.on('end', () => {
+      const body = Buffer.concat(bodyChunks).toString('utf8');
       let parsedBody;
       try {
         parsedBody = JSON.parse(body);
@@ -853,9 +862,10 @@ const server = http.createServer((req, res) => {
 
   // 天気取得
   } else if (req.method === 'POST' && req.url === '/weather') {
-    let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let bodyChunks = [];
+    req.on('data', chunk => { bodyChunks.push(chunk); });
     req.on('end', () => {
+      const body = Buffer.concat(bodyChunks).toString('utf8');
       let parsedBody;
       try {
         parsedBody = JSON.parse(body);
@@ -868,9 +878,10 @@ const server = http.createServer((req, res) => {
       const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=ja`;
 
       https.get(url, (apiRes) => {
-        let data = '';
-        apiRes.on('data', chunk => { data += chunk; });
+        let dataChunks = [];
+        apiRes.on('data', chunk => { dataChunks.push(chunk); });
         apiRes.on('end', () => {
+          const data = Buffer.concat(dataChunks).toString('utf8');
           try {
             const parsed = JSON.parse(data);
             const weather = {

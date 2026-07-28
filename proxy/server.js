@@ -924,7 +924,12 @@ process.on('uncaughtException', (e) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`StyleMind プロキシサーバー起動中: http://localhost:${PORT}`);
-  console.log('Ctrl+C で停止');
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`StyleMind プロキシサーバー起動中: http://localhost:${PORT}`);
+    console.log('Ctrl+C で停止');
+  });
+}
+
+// テストから純粋関数だけを読み込めるようにする（requireしてもサーバーは起動しない）
+module.exports = { cleanValue, parseOutfitItems, OUTFIT_LABEL_MAP };

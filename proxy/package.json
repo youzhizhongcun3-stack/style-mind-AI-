@@ -2,9 +2,11 @@
   "name": "stylemind-proxy",
   "version": "1.0.0",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test/parseOutfitItems.test.js"
   },
   "dependencies": {
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "firebase-admin": "^14.2.0"
   }
 }

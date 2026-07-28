@@ -844,7 +844,9 @@ class ChatMessage {
   final String text;
   final bool isUser;
   final String? imageUrl;
-  ChatMessage({required this.text, required this.isUser, this.imageUrl});
+  final String? failedOutfitText; // 画像生成が失敗した場合、リトライ用に元のコーデ内容を保持
+  String? feedback; // 'like' or 'dislike'（ユーザーがこの提案をどう感じたかの簡易フィードバック）
+  ChatMessage({required this.text, required this.isUser, this.imageUrl, this.failedOutfitText, this.feedback});
 }
 
 class ClaudeService {
@@ -1177,6 +1179,60 @@ class _ChatScreenState extends State<ChatScreen> {
         .doc(uid)
         .collection('messages')
         .add(data);
+  }
+
+  /// コーデ提案への簡単な評価（いいね/いまいち）をFirestoreに記録する。
+  /// 今はまだAI側の改善に使う仕組みはないが、今後の提案精度向上のための
+  /// 実データを貯める第一歩として実装（これまでこの種のデータが一切無かった）。
+  Future<void> _recordFeedback(int index, String outfitText, String feedback) async {
+    setState(() => _messages[index].feedback = feedback);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('coordinate_feedback')
+        .add({
+      'outfitText': outfitText,
+      'feedback': feedback,
+      'skeletonType': widget.userProfile.skeletonType,
+      'styles': widget.userProfile.styles,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// コーデ提案メッセージの下に表示する、いいね/いまいちボタン。
+  /// 既に評価済みの場合は選んだ方だけ強調表示し、押し直しはできないようにする
+  /// （評価を覆せる必要は薄く、UIをシンプルに保つため）。
+  Widget _buildFeedbackRow(int index, ChatMessage msg) {
+    final outfitText = msg.text.isNotEmpty ? msg.text : (_lastOutfitReply ?? '');
+    if (outfitText.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: msg.feedback != null ? null : () => _recordFeedback(index, outfitText, 'like'),
+            icon: Icon(
+              msg.feedback == 'like' ? Icons.thumb_up : Icons.thumb_up_outlined,
+              size: 16,
+              color: msg.feedback == 'like' ? const Color(0xFF7FD6C2) : Colors.black38,
+            ),
+          ),
+          IconButton(
+            visualDensity: VisualDensity.compact,
+            onPressed: msg.feedback != null ? null : () => _recordFeedback(index, outfitText, 'dislike'),
+            icon: Icon(
+              msg.feedback == 'dislike' ? Icons.thumb_down : Icons.thumb_down_outlined,
+              size: 16,
+              color: msg.feedback == 'dislike' ? Colors.redAccent : Colors.black38,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveCoordinate(String text, String? imageUrl) async {
@@ -1586,21 +1642,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final isImageRequest = userText.contains('画像') || userText.contains('写真') || userText.contains('見せて') || userText.contains('イメージ') || userText.contains('生成') || userText.contains('画面') || userText.contains('見たい') || userText.contains('コーデ見') || userText.contains('作って');
 
     if (isImageRequest) {
-      final canGenerate = await PurchaseService.canGenerateImage();
-      if (!canGenerate) {
-        setState(() {
-          _messages.add(ChatMessage(text: '__paywall__', isUser: false));
-        });
-        _scrollToBottom();
-        return;
-      }
-
-      setState(() {
-        _messages.add(ChatMessage(text: '__generating_image__', isUser: false));
-        _isLoading = true;
-      });
-      _scrollToBottom();
-
       // 最新のコーデ提案を使用（なければ直前メッセージを検索）
       String outfitText = _lastOutfitReply ?? reply;
       if (_lastOutfitReply == null) {
@@ -1612,26 +1653,50 @@ class _ChatScreenState extends State<ChatScreen> {
           }
         }
       }
-
-      final imageUrl = await ClaudeService.generateImage(outfitText, userProfile: widget.userProfile);
-
-      if (imageUrl != null) {
-        await PurchaseService.recordGenerationUsed();
-        await _refreshFreeStatus();
-      }
-
-      setState(() {
-        _isLoading = false;
-        if (imageUrl != null) {
-          _messages.last = ChatMessage(text: '👗 提案コーデのイメージ', isUser: false, imageUrl: imageUrl);
-          _saveToFirestore('👗 提案コーデのイメージ', false, imageUrl: imageUrl);
-        } else {
-          _messages.last = ChatMessage(text: '画像の生成に失敗しました。もう一度お試しください。', isUser: false);
-        }
-      });
-      _scrollToBottom();
+      await _generateImageForOutfit(outfitText);
     }
 
+    _scrollToBottom();
+  }
+
+  /// 画像生成の実処理。チャットからの初回リクエストと、失敗後の「もう一度生成する」
+  /// リトライボタンの両方から呼ばれる共通ロジック。
+  Future<void> _generateImageForOutfit(String outfitText) async {
+    final canGenerate = await PurchaseService.canGenerateImage();
+    if (!canGenerate) {
+      setState(() {
+        _messages.add(ChatMessage(text: '__paywall__', isUser: false));
+      });
+      _scrollToBottom();
+      return;
+    }
+
+    setState(() {
+      _messages.add(ChatMessage(text: '__generating_image__', isUser: false));
+      _isLoading = true;
+    });
+    _scrollToBottom();
+
+    final imageUrl = await ClaudeService.generateImage(outfitText, userProfile: widget.userProfile);
+
+    if (imageUrl != null) {
+      await PurchaseService.recordGenerationUsed();
+      await _refreshFreeStatus();
+    }
+
+    setState(() {
+      _isLoading = false;
+      if (imageUrl != null) {
+        _messages.last = ChatMessage(text: '👗 提案コーデのイメージ', isUser: false, imageUrl: imageUrl);
+        _saveToFirestore('👗 提案コーデのイメージ', false, imageUrl: imageUrl);
+      } else {
+        _messages.last = ChatMessage(
+          text: '画像の生成に失敗しました。もう一度お試しください。',
+          isUser: false,
+          failedOutfitText: outfitText,
+        );
+      }
+    });
     _scrollToBottom();
   }
 
@@ -1836,7 +1901,22 @@ class _ChatScreenState extends State<ChatScreen> {
                             fontSize: 15,
                           ),
                         ),
-                        if (!msg.isUser && msg.imageUrl == null && msg.text.isNotEmpty) ...[
+                        if (!msg.isUser && msg.failedOutfitText != null) ...[
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _generateImageForOutfit(msg.failedOutfitText!),
+                              icon: const Icon(Icons.refresh, size: 16),
+                              label: const Text('もう一度生成する', style: TextStyle(fontSize: 13)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF7FD6C2),
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (!msg.isUser && msg.imageUrl == null && msg.text.isNotEmpty && msg.failedOutfitText == null) ...[
                           const SizedBox(height: 4),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
@@ -1853,6 +1933,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ],
                           ),
+                          _buildFeedbackRow(index, msg),
                         ],
                         if (msg.imageUrl != null) ...[
                           const SizedBox(height: 8),
@@ -1925,6 +2006,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               ),
                             ],
                           ),
+                          _buildFeedbackRow(index, msg),
                         ],
                       ],
                     ),

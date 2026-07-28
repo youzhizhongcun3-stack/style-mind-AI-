@@ -1269,6 +1269,7 @@ class _ChatScreenState extends State<ChatScreen> {
       }
 
       if (kIsWeb) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('画像を長押しして保存してください'), backgroundColor: Color(0xFF7FD6C2)),
         );

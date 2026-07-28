@@ -19,6 +19,7 @@ import 'points_service.dart';
 import 'discover_hub_screen.dart';
 import 'closet_hub_screen.dart';
 import 'my_page_screen.dart';
+import 'review_service.dart';
 import 'purchase_service.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
 
@@ -896,36 +897,6 @@ class ClaudeService {
     }
   }
 
-  static Future<String?> getFashionTip() async {
-    try {
-      final tips = [
-        '白シャツ1枚でコーデの印象が大きく変わります。オーバーサイズとジャストサイズを使い分けてみましょう',
-        'デニムの色で季節感を演出できます。夏は薄いライトブルー、秋冬は濃いインディゴが旬です',
-        'スニーカーの白は最強の万能アイテム。どんなコーデにも合わせやすくクリーンな印象を作れます',
-        'バッグの色はシューズと合わせると統一感が生まれます。この小技でグッとおしゃれに見えます',
-        'レイヤードは首元・袖口・裾の3箇所で差し色を見せると洗練されたスタイルになります',
-        'ワントーンコーデは同系色でまとめることで自然なグラデーションが生まれおしゃれ上級者に見えます',
-        '腕時計は左手首、リングは右手に付けるとバランスよく見えます',
-        'オーバーサイズトップスはボトムをタックインするとシルエットが締まりスタイルよく見えます',
-        'ベルトはパンツとシューズの色に合わせると全体がまとまり、洗練された印象になります',
-        'ニットとデニムの組み合わせは季節を問わず使えるベーシックコーデの王道です',
-        'キャップ一つでカジュアル感が増し、ストリートスタイルのアクセントになります',
-        '小柄な方は上下同系色のワントーンにすると縦のラインが強調されスタイルよく見えます',
-        'がっちり体型の方はオーバーサイズのトップスで肩幅をカバーするとバランスが整います',
-        '色は3色以内にまとめるとコーデが破綻しません。メイン・サブ・アクセントの3色が基本です',
-        'ソックスを見せるだけでコーデにアクセントが生まれます。柄・色ソックスは上級テクです',
-        'シャツの第1ボタンを開けるだけでこなれた印象に。ネクタイなしのシャツはここが重要です',
-        '素材感の違いを楽しむのが2026年のトレンド。ニット×レザー、コットン×ナイロンなどの組み合わせを試してみて',
-        'トレンドアイテムを1点入れるだけでコーデが今っぽくなります。全部トレンドにする必要はありません',
-        'ロールアップ（袖・裾の折り返し）でカジュアル感と抜け感が同時に出せます',
-        '購入前にコーデ全体のバランスをスマホで写真撮って確認する習慣をつけると失敗が減ります',
-      ];
-      tips.shuffle();
-      return tips.first;
-    } catch (e) {
-      return null;
-    }
-  }
 
   static Future<String?> generateImage(String prompt, {UserProfile? userProfile}) async {
     try {
@@ -1228,6 +1199,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       );
     }
+    ReviewService.maybeRequestReview();
   }
 
   Future<void> _shareImage(String imageUrl) async {
@@ -1603,14 +1575,10 @@ class _ChatScreenState extends State<ChatScreen> {
         reply.contains('アウター') || reply.contains('ジャケット');
     if (isOutfitReply) {
       _lastOutfitReply = reply;
-      // コーデ提案時にスタイリングTipsを自動追加
-      final tip = await ClaudeService.getFashionTip();
-      if (tip != null && tip.isNotEmpty && mounted) {
-        setState(() {
-          _messages.add(ChatMessage(text: '💡 $tip', isUser: false));
-        });
-        await _saveToFirestore('💡 $tip', false);
-      }
+      // 以前はここでランダムな汎用Tipsを追加していたが、提案したコーデの内容と
+      // 無関係なアドバイスが表示されるとの指摘を受け廃止。system prompt側で
+      // 提案理由・スタイリングポイントを本文に含めるよう既に指示しているため、
+      // 別枠での汎用Tips表示は行わない。
     }
 
     // 画像生成はユーザーが明示的に依頼した場合のみ
@@ -1645,13 +1613,7 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
 
-      // 画像生成と並列でTipsを取得
-      final results = await Future.wait([
-        ClaudeService.generateImage(outfitText, userProfile: widget.userProfile),
-        ClaudeService.getFashionTip(),
-      ]);
-      final imageUrl = results[0] as String?;
-      final tip = results[1] as String?;
+      final imageUrl = await ClaudeService.generateImage(outfitText, userProfile: widget.userProfile);
 
       if (imageUrl != null) {
         await PurchaseService.recordGenerationUsed();
@@ -1663,10 +1625,6 @@ class _ChatScreenState extends State<ChatScreen> {
         if (imageUrl != null) {
           _messages.last = ChatMessage(text: '👗 提案コーデのイメージ', isUser: false, imageUrl: imageUrl);
           _saveToFirestore('👗 提案コーデのイメージ', false, imageUrl: imageUrl);
-          if (tip != null && tip.isNotEmpty) {
-            _messages.add(ChatMessage(text: '💡 スタイリングTips\n$tip', isUser: false));
-            _saveToFirestore('💡 スタイリングTips\n$tip', false);
-          }
         } else {
           _messages.last = ChatMessage(text: '画像の生成に失敗しました。もう一度お試しください。', isUser: false);
         }

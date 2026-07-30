@@ -1246,6 +1246,7 @@ class _ChatScreenState extends State<ChatScreen> {
       'text': text,
       'imageUrl': imageUrl,
       'savedAt': FieldValue.serverTimestamp(),
+      'tags': <String>[],
     });
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

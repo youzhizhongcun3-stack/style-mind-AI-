@@ -22,6 +22,9 @@ import 'my_page_screen.dart';
 import 'review_service.dart';
 import 'purchase_service.dart';
 import 'package:purchases_flutter/purchases_flutter.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
+import 'dart:math';
+import 'package:crypto/crypto.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -102,6 +105,53 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // Appleの審査ガイドライン4.8対応：Googleログインのような第三者ソーシャル
+  // ログインを提供するアプリは、同等の選択肢としてSign in with Appleも
+  // 提供する必要があるため追加。リプレイ攻撃対策のnonceはFirebase公式の
+  // 推奨方式（生のnonceを保持しつつSHA256ハッシュ化したものをApple側に渡す）。
+  String _generateNonce([int length = 32]) {
+    const charset = '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(length, (_) => charset[random.nextInt(charset.length)]).join();
+  }
+
+  String _sha256ofString(String input) {
+    final bytes = utf8.encode(input);
+    return sha256.convert(bytes).toString();
+  }
+
+  Future<void> _signInWithApple() async {
+    setState(() => _isLoading = true);
+    try {
+      if (kIsWeb) {
+        await FirebaseAuth.instance.signInWithPopup(OAuthProvider('apple.com'));
+      } else {
+        final rawNonce = _generateNonce();
+        final nonce = _sha256ofString(rawNonce);
+        final appleCredential = await SignInWithApple.getAppleIDCredential(
+          scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
+          nonce: nonce,
+        );
+        final oauthCredential = OAuthProvider('apple.com').credential(
+          idToken: appleCredential.identityToken,
+          rawNonce: rawNonce,
+        );
+        await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+      }
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null && PurchaseService.isPurchaseSupported) {
+        await Purchases.logIn(uid);
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ログインに失敗しました: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -129,25 +179,55 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 60),
               _isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
-                  : ElevatedButton.icon(
-                      onPressed: _signInWithGoogle,
-                      icon: const Icon(Icons.login),
-                      label: const Text('Googleでログイン'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        foregroundColor: const Color(0xFF7FD6C2),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 32,
-                          vertical: 14,
+                  : Column(
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: _signInWithGoogle,
+                          icon: const Icon(Icons.login),
+                          label: const Text('Googleでログイン'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF7FD6C2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 32,
+                              vertical: 14,
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
                         ),
-                        textStyle: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
+                        // Appleの審査ガイドライン4.8対応：ソーシャルログインを
+                        // 提供する場合はSign in with Appleも必須のため、
+                        // iOS/Webでのみ表示（Androidはネイティブ対応が無いため対象外）
+                        if (kIsWeb || Platform.isIOS) ...[
+                          const SizedBox(height: 12),
+                          ElevatedButton.icon(
+                            onPressed: _signInWithApple,
+                            icon: const Icon(Icons.apple),
+                            label: const Text('Appleでサインイン'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.black,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 32,
+                                vertical: 14,
+                              ),
+                              textStyle: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(30),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
             ],
           ),

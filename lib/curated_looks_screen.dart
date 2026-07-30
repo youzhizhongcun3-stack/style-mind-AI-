@@ -117,6 +117,13 @@ class _CuratedLooksScreenState extends State<CuratedLooksScreen> {
     }
   }
 
+  // 骨格タイプ・好みに一致するものはある程度優先しつつ、毎回同じ並びに
+  // ならないよう表示順だけシャッフルする（画像自体を増やすのは別途費用が
+  // かかるため、まずは今ある画像の見せ方を変える形で「更新」に応える）
+  void _shuffleOrder() {
+    setState(() => _looks.shuffle());
+  }
+
   int _matchScore(CuratedLook look) {
     int score = 0;
     if (widget.userProfile.skeletonType.isNotEmpty && look.skeletonType == widget.userProfile.skeletonType) score += 3;
@@ -250,12 +257,25 @@ class _CuratedLooksScreenState extends State<CuratedLooksScreen> {
         title: const Text('あなたにおすすめのコーデ', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         iconTheme: const IconThemeData(color: Colors.white),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.shuffle),
+            tooltip: '表示順を更新',
+            onPressed: _loading ? null : _shuffleOrder,
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(child: Text(_error!))
-              : ListView.builder(
+              : RefreshIndicator(
+                  color: const Color(0xFF7FD6C2),
+                  onRefresh: () async {
+                    await _load();
+                    _shuffleOrder();
+                  },
+                  child: ListView.builder(
                   padding: const EdgeInsets.all(12),
                   itemCount: _looks.length,
                   itemBuilder: (context, i) {
@@ -373,6 +393,7 @@ class _CuratedLooksScreenState extends State<CuratedLooksScreen> {
                       ),
                     );
                   },
+                  ),
                 ),
     );
   }

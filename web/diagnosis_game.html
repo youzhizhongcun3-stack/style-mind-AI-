@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>あなたのファッション人格診断 | StyleMind AI</title>
+<style>
+  :root {
+    --main: #7FD6C2;
+    --main-dark: #5BC4AE;
+    --bg: #FFF8F3;
+    --text: #333;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    display: flex;
+    justify-content: center;
+  }
+  .app {
+    width: 100%;
+    max-width: 480px;
+    min-height: 100vh;
+    background: white;
+    box-shadow: 0 0 30px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: linear-gradient(135deg, var(--main), var(--main-dark));
+    color: white;
+    padding: 28px 20px;
+    text-align: center;
+  }
+  header h1 { font-size: 20px; margin: 0 0 6px; }
+  header p { font-size: 12px; margin: 0; opacity: 0.9; }
+  .progress-bar {
+    height: 5px;
+    background: #eee;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--main);
+    transition: width 0.3s ease;
+    width: 0%;
+  }
+  .screen { padding: 28px 20px; flex: 1; }
+  .hidden { display: none; }
+  .question-num { font-size: 13px; color: var(--main-dark); font-weight: bold; margin-bottom: 8px; }
+  .question-text { font-size: 18px; font-weight: bold; margin-bottom: 20px; line-height: 1.5; }
+  .choice {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 16px;
+    margin-bottom: 12px;
+    border: 2px solid #eee;
+    border-radius: 14px;
+    background: white;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .choice:hover, .choice:active {
+    border-color: var(--main);
+    background: #F0FBF9;
+  }
+  .choice.selected {
+    border-color: var(--main-dark);
+    background: var(--main);
+    color: white;
+    transform: scale(1.03);
+  }
+  .choice:disabled { pointer-events: none; }
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in { animation: fadeSlideIn 0.35s ease; }
+  @keyframes popIn {
+    0% { opacity: 0; transform: scale(0.7); }
+    70% { opacity: 1; transform: scale(1.05); }
+    100% { transform: scale(1); }
+  }
+  .pop-in { animation: popIn 0.5s ease; }
+  .stat-line {
+    text-align: center;
+    font-size: 13px;
+    color: var(--main-dark);
+    font-weight: bold;
+    margin-bottom: 16px;
+  }
+  .share-btn {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    border-radius: 14px;
+    border: 2px solid var(--main-dark);
+    background: white;
+    color: var(--main-dark);
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 12px;
+  }
+  .start-btn, .cta-btn, .retry-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    border-radius: 14px;
+    border: none;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 12px;
+  }
+  .start-btn, .cta-btn {
+    background: var(--main-dark);
+    color: white;
+  }
+  .retry-btn {
+    background: #f2f2f2;
+    color: var(--text);
+  }
+  .intro-icon { font-size: 56px; text-align: center; margin-bottom: 12px; }
+  .intro-text { font-size: 14px; line-height: 1.8; margin-bottom: 24px; }
+  .result-badge {
+    text-align: center;
+    padding: 24px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #FFF3E0, #FFE0EC);
+    margin-bottom: 20px;
+  }
+  .result-badge .emoji { font-size: 48px; }
+  .result-badge h2 { font-size: 22px; margin: 8px 0 4px; }
+  .result-badge .keyword { font-size: 13px; color: #888; }
+  .result-desc { font-size: 14px; line-height: 1.9; margin-bottom: 20px; }
+  .cta-box {
+    background: #F0FBF9;
+    border: 2px dashed var(--main);
+    border-radius: 16px;
+    padding: 18px;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1.7;
+    margin-bottom: 16px;
+  }
+  footer { text-align: center; font-size: 11px; color: #aaa; padding: 16px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>あなたのファッション人格診断</h1>
+    <p>6つの質問で、あなたの"スタイル"がわかる</p>
+  </header>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+
+  <div class="screen" id="introScreen">
+    <div class="intro-icon">👗</div>
+    <div class="intro-text">
+      普段の好みを答えるだけで、あなたが4つのファッションタイプのうちどれに当てはまるかがわかります。<br><br>
+      所要時間は約30秒。結果はスクリーンショットしてシェアしてね！
+    </div>
+    <button class="start-btn" onclick="startQuiz()">診断をはじめる</button>
+  </div>
+
+  <div class="screen hidden" id="quizScreen">
+    <div class="question-num" id="questionNum">Q1 / 6</div>
+    <div class="question-text" id="questionText"></div>
+    <div id="choicesContainer"></div>
+  </div>
+
+  <div class="screen hidden" id="resultScreen">
+    <div class="result-badge pop-in">
+      <div class="emoji" id="resultEmoji"></div>
+      <h2 id="resultTitle"></h2>
+      <div class="keyword" id="resultKeyword"></div>
+    </div>
+    <div class="stat-line" id="resultStat"></div>
+    <div class="result-desc" id="resultDesc"></div>
+    <button class="share-btn" onclick="shareResult()">📤 友達にシェアする</button>
+    <div class="cta-box">
+      あなたの"ファッション人格"に合うコーデ、AIスタイリストがもっと具体的に提案します。<br><br>
+      <button class="cta-btn" onclick="window.location.href='https://stylemind-ai-d14ec.web.app'">👉 StyleMind AIで無料体験する</button>
+    </div>
+    <button class="retry-btn" onclick="resetQuiz()">もう一度診断する</button>
+  </div>
+
+  <footer>StyleMind AI &mdash; AIファッションスタイリスト</footer>
+</div>
+
+<script>
+const questions = [
+  {
+    text: "休日の過ごし方は？",
+    choices: [
+      ["カフェで静かに読書", "A"],
+      ["友達とスケボーやバスケ", "B"],
+      ["可愛い雑貨屋さん巡り", "C"],
+      ["美術館やギャラリー巡り", "D"],
+    ]
+  },
+  {
+    text: "好きな色の組み合わせは？",
+    choices: [
+      ["白・グレー・黒のモノトーン", "A"],
+      ["原色や差し色を効かせたコーデ", "B"],
+      ["パステルカラーや淡い色味", "C"],
+      ["個性的な色・柄の組み合わせ", "D"],
+    ]
+  },
+  {
+    text: "バッグを選ぶなら？",
+    choices: [
+      ["シンプルなレザートート", "A"],
+      ["リュックやショルダーバッグ", "B"],
+      ["可愛いミニバッグ", "C"],
+      ["個性的な形のバッグ", "D"],
+    ]
+  },
+  {
+    text: "靴を選ぶなら？",
+    choices: [
+      ["白スニーカーやローファー", "A"],
+      ["ハイテクスニーカー", "B"],
+      ["パンプスやバレエシューズ", "C"],
+      ["ブーツや個性派の靴", "D"],
+    ]
+  },
+  {
+    text: "憧れるのは？",
+    choices: [
+      ["洗練された大人の余裕", "A"],
+      ["アクティブで自由なスタイル", "B"],
+      ["甘さと可愛さのバランス", "C"],
+      ["誰とも被らない自分らしさ", "D"],
+    ]
+  },
+  {
+    text: "SNSでよく保存する投稿は？",
+    choices: [
+      ["シンプルで洗練されたコーデ", "A"],
+      ["スポーティ＆カジュアルなコーデ", "B"],
+      ["可愛い小物やコーデ", "C"],
+      ["アート性の高い個性的なコーデ", "D"],
+    ]
+  },
+];
+
+const results = {
+  A: {
+    emoji: "🤍",
+    title: "ミニマル・シンプリスト",
+    keyword: "白黒グレー × 洗練",
+    desc: "あなたは引き算の美学で魅せる大人スタイル派。無駄をそぎ落としたシンプルなコーデの中に、質の良さやシルエットの美しさで個性を出すのが得意です。",
+    stat: 24
+  },
+  B: {
+    emoji: "⚡",
+    title: "アクティブ・ストリーター",
+    keyword: "原色 × スポーティ",
+    desc: "動きやすさと自分らしさを両立する自由派。トレンドを取り入れつつ、自分なりのミックス感を楽しむセンスがあります。",
+    stat: 31
+  },
+  C: {
+    emoji: "🎀",
+    title: "スイート・ガーリー",
+    keyword: "パステル × 甘め",
+    desc: "可愛さと女性らしさを大切にするタイプ。優しい色味や柔らかいシルエットで、周りを癒す雰囲気作りが得意です。",
+    stat: 22
+  },
+  D: {
+    emoji: "🎨",
+    title: "アバンギャルド・アーティスト",
+    keyword: "個性 × アート性",
+    desc: "誰とも被らない自分だけの表現者。トレンドに縛られず、自分の感性を信じてスタイルを作り上げる力があります。",
+    stat: 23
+  },
+};
+
+let currentQuestion = 0;
+const answers = [];
+
+function startQuiz() {
+  document.getElementById("introScreen").classList.add("hidden");
+  document.getElementById("quizScreen").classList.remove("hidden");
+  renderQuestion();
+}
+
+function resetQuiz() {
+  currentQuestion = 0;
+  answers.length = 0;
+  document.getElementById("progressFill").style.width = "0%";
+  document.getElementById("resultScreen").classList.add("hidden");
+  document.getElementById("quizScreen").classList.add("hidden");
+  document.getElementById("introScreen").classList.remove("hidden");
+}
+
+function renderQuestion() {
+  const q = questions[currentQuestion];
+  const questionText = document.getElementById("questionText");
+  questionText.textContent = q.text;
+  document.getElementById("questionNum").textContent = `Q${currentQuestion + 1} / ${questions.length}`;
+  document.getElementById("progressFill").style.width = `${(currentQuestion / questions.length) * 100}%`;
+
+  const container = document.getElementById("choicesContainer");
+  container.innerHTML = "";
+  q.choices.forEach(([label, type]) => {
+    const btn = document.createElement("button");
+    btn.className = "choice fade-in";
+    btn.textContent = label;
+    btn.onclick = () => selectAnswer(btn, type);
+    container.appendChild(btn);
+  });
+  questionText.classList.remove("fade-in");
+  void questionText.offsetWidth;
+  questionText.classList.add("fade-in");
+}
+
+function selectAnswer(btn, type) {
+  const allChoices = document.querySelectorAll(".choice");
+  allChoices.forEach(c => c.disabled = true);
+  btn.classList.add("selected");
+
+  answers.push(type);
+  setTimeout(() => {
+    currentQuestion++;
+    if (currentQuestion < questions.length) {
+      renderQuestion();
+    } else {
+      showResult();
+    }
+  }, 280);
+}
+
+function showResult() {
+  document.getElementById("progressFill").style.width = "100%";
+  const counts = { A: 0, B: 0, C: 0, D: 0 };
+  answers.forEach(a => counts[a]++);
+  let winner = answers[answers.length - 1];
+  let maxCount = -1;
+  ["A", "B", "C", "D"].forEach(k => {
+    if (counts[k] > maxCount) {
+      maxCount = counts[k];
+      winner = k;
+    }
+  });
+
+  const result = results[winner];
+  document.getElementById("resultEmoji").textContent = result.emoji;
+  document.getElementById("resultTitle").textContent = result.title;
+  document.getElementById("resultKeyword").textContent = result.keyword;
+  document.getElementById("resultDesc").textContent = result.desc;
+  document.getElementById("resultStat").textContent = `あなたと同じタイプの人は、全体の${result.stat}%`;
+  window.currentResult = result;
+
+  document.getElementById("quizScreen").classList.add("hidden");
+  document.getElementById("resultScreen").classList.remove("hidden");
+}
+
+function shareResult() {
+  const result = window.currentResult;
+  const text = `私のファッション人格は「${result.title}」でした！${result.keyword}\nあなたはどのタイプ？→ StyleMind AIで診断`;
+  const shareUrl = window.location.href;
+  if (navigator.share) {
+    navigator.share({ title: "ファッション人格診断", text, url: shareUrl }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(`${text}\n${shareUrl}`).then(() => {
+      alert("結果をコピーしました。SNSに貼り付けてシェアしてね！");
+    });
+  }
+}
+</script>
+</body>
+</html>

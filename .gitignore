@@ -3,6 +3,13 @@
 proxy/起動手順.txt
 proxy/firebase-service-account.json
 
+# Androidリリース署名鍵（絶対にアップロード禁止。紛失するとPlay Storeでアプリ更新ができなくなる重要ファイル）
+android/key.properties
+android/keystore/
+
+# Firebase CLIのローカルキャッシュ
+.firebase/
+
 # Node.js
 node_modules/
 proxy/node_modules/

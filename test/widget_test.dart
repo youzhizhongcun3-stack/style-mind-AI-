@@ -1,30 +1,44 @@
-// This is a basic Flutter widget test.
+// Unit tests for pure logic in lib/main.dart.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Note: a full widget test of StyleMindApp/AuthGate would require mocking
+// Firebase (main() calls Firebase.initializeApp() before runApp, and
+// AuthGate reads FirebaseAuth.instance directly), which isn't set up in
+// this project yet. Until that's added, we test the pure, Firebase-free
+// logic instead so `flutter test` actually compiles and passes.
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:stylemind_ai/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  group('UserProfile', () {
+    test('isComplete is false when gender and styles are empty', () {
+      final profile = UserProfile();
+      expect(profile.isComplete, isFalse);
+    });
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    test('isComplete is true once gender and at least one style are set', () {
+      final profile = UserProfile(gender: 'メンズ', styles: ['ストリート']);
+      expect(profile.isComplete, isTrue);
+    });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    test('toMap joins list fields with the ・ separator', () {
+      final profile = UserProfile(
+        gender: 'メンズ',
+        age: '20代',
+        styles: ['ストリート', 'モード'],
+        brands: ['ユニクロ'],
+        budget: '1万円以内',
+        height: '166〜170cm',
+        bodyType: '細身',
+        ngItems: ['露出多め'],
+      );
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+      final map = profile.toMap();
+
+      expect(map['gender'], 'メンズ');
+      expect(map['styles'], 'ストリート・モード');
+      expect(map['brands'], 'ユニクロ');
+      expect(map['ngItems'], '露出多め');
+    });
   });
 }

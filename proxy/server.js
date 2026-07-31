@@ -325,7 +325,9 @@ ${userProfile?.ngItems ? `\n【最優先の絶対ルール】ユーザーはこ�
         res.end(JSON.stringify({ error: 'リクエストの形式が不正です' }));
         return;
       }
-      const { prompt, userProfile } = parsedBody;
+      const { prompt, userProfile, _debugQuality } = parsedBody;
+      // _debugQuality: 品質設定の比較検証用の内部パラメータ（未指定時は通常のmediumのまま）
+      const imageQuality = _debugQuality === 'high' ? 'high' : 'medium';
 
       const gender = userProfile?.gender || '';
       const age = userProfile?.age || '20代';
@@ -594,7 +596,7 @@ ${userProfile?.ngItems ? `\n【最優先の絶対ルール】ユーザーはこ�
             prompt: finalPrompt,
             n: 1,
             size: '1024x1536',
-            quality: 'medium',
+            quality: imageQuality,
           });
 
           const imageOptions = {

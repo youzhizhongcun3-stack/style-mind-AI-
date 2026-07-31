@@ -234,7 +234,7 @@ ${userProfile?.ngItems ? `\n【最優先の絶対ルール】ユーザーはこ�
 ・平成女児/Y3K：厚底ローファー、缶バッジ、リボン、量産型ヘアに、SF・コズミックな近未来モチーフ（Y3K）を組み合わせたスタイルがZ世代で急浮上。Y2Kより一段幼さ・少女漫画的な可愛さを強調するのが特徴
 ・オフデューティ・バーシティ：スポーツジャージ/野球ジャージー/パッチワークデニム/デニムジョーツなど、スポーティ×カジュアルの掛け合わせが夏の主流
 ・2026秋冬：ファージャケット（ショート丈・カラーファー）、力の抜けたテーラードジャケット、ウエストをマークするベルテッドデザインが台頭。「ひねり・ずれ・違和感」を効かせた着崩しがムードの核
-・韓国系（オルチャン）最新：パデッド/キルティング素材のショルダーバッグが定番化（韓国コーデ投稿の9割がショルダー型）、バタフライ刺繍、ティアードフリルミニスカートが人気
+・韓国系（オルチャン）最新：パデッド/キルティング素材のショルダーバッグが定番化（韓国コーデ投稿の9割がショルダー型）、ティアードフリルミニスカートが人気。※蝶モチーフ・蝶刺繍は「幼く見える」と実際に判断されたため、この系統の提案には使わないこと。柄物より無地・上質素材での質感勝負が今のオルチャン系の主流
 ・スニーカー：機能性よりコーディネート映え重視のヒュブリッドシルエット（厚底×クラシックの組み合わせ等）が主流に
 ・カラー最新：ラベンダー/ミントグリーン/オフホワイトが韓国系春夏コーデで人気急上昇。上記の既存カラートレンドと併用してよい
 
@@ -586,7 +586,7 @@ ${userProfile?.ngItems ? `\n【最優先の絶対ルール】ユーザーはこ�
       const generateImage = (outfitDesc) => {
           const genderJp = gender === 'メンズ' ? 'Japanese male fashion model' : gender === 'レディース' ? 'Japanese female fashion model' : 'Japanese fashion model';
           // DALL-E 3はブランド名を拒否する場合があるため、視覚的特徴を中心にした英語プロンプトを使用
-          const finalPrompt = `Fashion catalog photography. Pure white background. ${genderJp} standing in center frame. COMPOSITION: full body from top of head to bottom of shoes — head fully visible at top, shoes fully visible at bottom, nothing cropped. Camera at medium distance showing entire figure. Outfit (show ALL items completely, nothing hidden or cropped): ${outfitDesc}. Do NOT add unlisted items. Neutral relaxed standing pose, arms slightly away from body so all items are visible.`;
+          const finalPrompt = `Fashion catalog photography. Pure white background. ${genderJp} standing in center frame. COMPOSITION: full body from top of head to bottom of shoes — head fully visible at top, shoes fully visible at bottom, nothing cropped. Camera at medium distance showing entire figure. Outfit (show ALL items completely, nothing hidden or cropped): ${outfitDesc}. All garments are PLAIN and SOLID-COLORED with no pattern, print, graphic, logo, embroidery, patch, pin, button decoration, or text unless a pattern/print is explicitly named above — do not invent decorative details of any kind. Do NOT add unlisted items. Neutral relaxed standing pose, arms slightly away from body so all items are visible.`;
           console.log('Final image prompt:', finalPrompt);
 
           const imagePayload = JSON.stringify({
@@ -838,7 +838,7 @@ ${userProfile?.ngItems ? `\n【最優先の絶対ルール】ユーザーはこ�
         { brand: 'スナイデル', item: 'フリルブラウス', price: '¥12,000', category: 'トップス', skeletonTypes: ['ウェーブタイプ'], styles: ['フェミニン/ガーリー'] },
         { brand: 'マウジー', item: 'ハイウエストフレアスカート', price: '¥9,900', category: 'ボトムス', skeletonTypes: ['ウェーブタイプ'], styles: ['フェミニン/ガーリー'] },
         { brand: 'NUGU', item: 'キルティングショルダーバッグ', price: '¥8,900', category: 'バッグ', skeletonTypes: ['ウェーブタイプ'], styles: ['韓国系/オルチャン'] },
-        { brand: 'ZARA', item: 'バタフライ刺繍デニムショーツ', price: '¥5,990', category: 'ボトムス', skeletonTypes: ['ウェーブタイプ'], styles: ['韓国系/オルチャン', 'Y2K/レトロ'] },
+        { brand: 'ZARA', item: 'ハイウエストデニムショーツ（無地）', price: '¥5,990', category: 'ボトムス', skeletonTypes: ['ウェーブタイプ'], styles: ['韓国系/オルチャン', 'Y2K/レトロ'] },
         { brand: 'パタゴニア', item: 'レトロXフリースジャケット', price: '¥24,000', category: 'アウター', skeletonTypes: ['ナチュラルタイプ'], styles: ['ゴープコア/アウトドア'] },
         { brand: 'カーハートWIP', item: 'デトロイトジャケット', price: '¥26,000', category: 'アウター', skeletonTypes: ['ナチュラルタイプ'], styles: ['カジュアル/アメカジ', 'ストリート'] },
         { brand: 'アーバンリサーチ', item: 'オーバーサイズニット', price: '¥9,900', category: 'トップス', skeletonTypes: ['ナチュラルタイプ'], styles: ['ミニマル/シンプル'] },

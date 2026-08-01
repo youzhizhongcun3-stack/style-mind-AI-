@@ -661,6 +661,67 @@ ${userProfile?.ngItems ? `\n【最優先の絶対ルール】ユーザーはこ�
       generateImage(outfitDesc);
     });
 
+  // 画像生成テスト専用（生プロンプトをそのままgpt-image-1に渡す、アプリ内からは呼ばれない検証用エンドポイント）
+  } else if (req.method === 'POST' && req.url === '/debug-raw-image') {
+    let bodyChunks = [];
+    req.on('data', chunk => { bodyChunks.push(chunk); });
+    req.on('end', () => {
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(Buffer.concat(bodyChunks).toString('utf8'));
+      } catch (e) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: 'リクエストの形式が不正です' }));
+        return;
+      }
+      const { prompt, quality, size } = parsedBody;
+      if (!prompt) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: 'promptが必要です' }));
+        return;
+      }
+      const imagePayload = JSON.stringify({
+        model: 'gpt-image-1',
+        prompt,
+        n: 1,
+        size: size || '1024x1536',
+        quality: quality === 'high' ? 'high' : 'medium',
+      });
+      const imageOptions = {
+        hostname: 'api.openai.com',
+        path: '/v1/images/generations',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Length': Buffer.byteLength(imagePayload),
+        },
+      };
+      const imageReq = https.request(imageOptions, (imageRes) => {
+        let chunks = [];
+        imageRes.on('data', c => chunks.push(c));
+        imageRes.on('end', () => {
+          const data = Buffer.concat(chunks).toString('utf8');
+          try {
+            const parsed = JSON.parse(data);
+            if (parsed.error) {
+              res.writeHead(500);
+              res.end(JSON.stringify({ error: parsed.error.message }));
+              return;
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+            res.end(JSON.stringify({ imageUrl: `data:image/png;base64,${parsed.data[0].b64_json}` }));
+          } catch (e) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ error: 'Image generation failed' }));
+          }
+        });
+      });
+      imageReq.on('error', (e) => { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); });
+      imageReq.write(imagePayload);
+      imageReq.end();
+    });
+
   // 服の写真解析（GPT-4o Vision）
   } else if (req.method === 'POST' && req.url === '/analyze-clothing') {
     let bodyChunks = [];

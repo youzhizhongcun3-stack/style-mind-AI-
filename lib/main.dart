@@ -980,12 +980,16 @@ class ClaudeService {
   }
 
 
-  static Future<String?> generateImage(String prompt, {UserProfile? userProfile}) async {
+  static Future<String?> generateImage(String prompt, {UserProfile? userProfile, String? sceneContext}) async {
     try {
       final response = await http.post(
         Uri.parse(_imageUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'prompt': prompt, 'userProfile': userProfile?.toMap()}),
+        body: jsonEncode({
+          'prompt': prompt,
+          'userProfile': userProfile?.toMap(),
+          'sceneContext': sceneContext ?? '',
+        }),
       ).timeout(const Duration(seconds: 120));
 
       if (response.statusCode == 200) {
@@ -1743,6 +1747,21 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
   }
 
+  /// 直近のユーザー発言から、画像生成のシーン設定（場所・季節・時間帯・雰囲気）に
+  /// 使える文脈テキストを組み立てる。「画像見せて」のような画像リクエストの
+  /// トリガー発言だけの短文はノイズになるので除外する。
+  String? _buildSceneContext() {
+    final triggerOnly = RegExp(r'^(画像|写真|見せて|イメージ|生成|画面|見たい|コーデ見|作って|お願い|して)+[。！!？?\s]*$');
+    final relevant = _messages
+        .where((m) => m.isUser && m.text.trim().isNotEmpty && !triggerOnly.hasMatch(m.text.trim()))
+        .map((m) => m.text.trim())
+        .toList();
+    if (relevant.isEmpty) return null;
+    final recent = relevant.length > 4 ? relevant.sublist(relevant.length - 4) : relevant;
+    final joined = recent.join('。');
+    return joined.length > 400 ? joined.substring(joined.length - 400) : joined;
+  }
+
   /// 画像生成の実処理。チャットからの初回リクエストと、失敗後の「もう一度生成する」
   /// リトライボタンの両方から呼ばれる共通ロジック。
   Future<void> _generateImageForOutfit(String outfitText) async {
@@ -1761,7 +1780,11 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     _scrollToBottom();
 
-    final imageUrl = await ClaudeService.generateImage(outfitText, userProfile: widget.userProfile);
+    final imageUrl = await ClaudeService.generateImage(
+      outfitText,
+      userProfile: widget.userProfile,
+      sceneContext: _buildSceneContext(),
+    );
 
     if (imageUrl != null) {
       await PurchaseService.recordGenerationUsed();

@@ -107,10 +107,11 @@ const server = http.createServer((req, res) => {
         return;
       }
       const { messages, userProfile, closetSummary, _debugStylistMode } = parsedBody;
-      // 対話型スタイリスト機能のテスト用フラグ（未指定時は既存の即答動作のまま、本番挙動に影響なし）
-      const stylistDialogueBlock = _debugStylistMode ? `
+      // 対話型スタイリスト機能：デフォルトで常時ON。_debugStylistModeを明示的にfalseにした場合のみ
+      // 旧来の即答動作に戻せる（切り戻し用の安全弁として残す）
+      const stylistDialogueBlock = _debugStylistMode !== false ? `
 
-【対話型スタイリングの姿勢（テスト機能）】
+【対話型スタイリングの姿勢】
 - コーデ相談を受けたら、いきなりフルのコーデ提案をせず、まず親しみやすいスタイリストとして必ず1つだけ質問を返すこと（シーンが明確な相談でも1つは質問する）。ただし質問は短く1〜2行で、選びやすい選択肢を添えること。長い前置きや複数の質問を並べて面倒にしないこと
 - 質問する観点は、その時点で一番情報が不足しているものを1つだけ選ぶ：
   - シーン・目的が不明な場合：シーン・目的（今日は何をする日か、どこへ行くか）
@@ -339,9 +340,12 @@ ${stylistDialogueBlock}
         res.end(JSON.stringify({ error: 'リクエストの形式が不正です' }));
         return;
       }
-      const { prompt, userProfile, _debugQuality } = parsedBody;
+      const { prompt, userProfile, _debugQuality, sceneContext } = parsedBody;
       // _debugQuality: 品質設定の比較検証用の内部パラメータ（未指定時は通常のmediumのまま）
       const imageQuality = _debugQuality === 'high' ? 'high' : 'medium';
+      // sceneContext: チャットの会話（対話型スタイリストが聞き出したシーン・季節・時間帯・雰囲気等）から
+      // Flutter側が組み立てて渡す文脈テキスト。未指定の場合は汎用の背景にフォールバックする
+      const hasSceneContext = typeof sceneContext === 'string' && sceneContext.trim().length > 0;
 
       const gender = userProfile?.gender || '';
       const age = userProfile?.age || '20代';
@@ -604,15 +608,23 @@ ${stylistDialogueBlock}
           // DALL-E 3はブランド名を拒否する場合があるため、視覚的特徴を中心にした英語プロンプトを使用
           // 構成順（Role→Pose→Location→Lighting→Camera→Style→Clothing→Quality→Avoid）は
           // 「白背景の証明写真ポーズ」がAIっぽさの最大要因という検証結果に基づく（2026-08-01）
+          const sceneLine = hasSceneContext
+            ? `Scene: This coordinate is for the following real-life context (from the user's conversation) — "${sceneContext.trim()}". Choose a real, specific, authentic location, time of day, and atmosphere that matches this context (for example: a cinema lobby for a movie date, a cafe interior for a cafe outing, a street or park for a casual walk). Let the implied season, time of day, and weather shape the lighting and mood.`
+            : `Scene: No specific occasion was given, so use a quiet, versatile everyday moment that suits the outfit.`;
+          const locationLine = hasSceneContext
+            ? `Location: A real, specific location authentically matching the Scene above, not a stark white studio backdrop. Calm and editorial in feeling.`
+            : `Location: Quiet minimal architectural interior space, soft neutral warm-toned wall, natural window light, subtle natural shadow on the floor — calm and editorial, not a stark white studio backdrop.`;
           const finalPrompt = `Role: You are a professional fashion editorial photographer and art director creating a premium fashion magazine campaign image.
 
 Subject: ${genderJp}, natural relaxed appearance, standing in a candid unposed moment.
 
+${sceneLine}
+
 Pose: Natural relaxed standing pose, weight shifted onto one leg, slight natural body asymmetry, slight shoulder tilt, looking slightly away from camera rather than straight ahead, soft natural expression, arms positioned naturally so all garments are fully visible, nothing hidden or cropped.
 
-Location: Quiet minimal architectural interior space, soft neutral warm-toned wall, natural window light, subtle natural shadow on the floor — calm and editorial, not a stark white studio backdrop.
+${locationLine}
 
-Lighting: Soft natural directional light, gentle shadows, subtle warmth, realistic editorial contrast, not flat or harsh.
+Lighting: Soft natural directional light matching the scene's time of day and mood, gentle shadows, subtle warmth, realistic editorial contrast, not flat or harsh.
 
 Camera: Full body shot from top of head to bottom of shoes, nothing cropped, medium distance, 50mm lens look, natural perspective, slight editorial angle, shallow depth of field with soft background blur.
 

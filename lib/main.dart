@@ -929,6 +929,45 @@ class ChatMessage {
   ChatMessage({required this.text, required this.isUser, this.imageUrl, this.failedOutfitText, this.feedback});
 }
 
+/// 過去のコーデ提案への👍👎フィードバックから、次のチャット提案をpersonalizeするための
+/// 要約テキストを組み立てる。好評だったもの／不評だったものそれぞれ直近を参照する。
+Future<String> getFeedbackSummary() async {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return '';
+  final snapshot = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .collection('coordinate_feedback')
+      .orderBy('createdAt', descending: true)
+      .limit(15)
+      .get();
+  if (snapshot.docs.isEmpty) return '';
+
+  final liked = <String>[];
+  final disliked = <String>[];
+  for (final doc in snapshot.docs) {
+    final data = doc.data();
+    final text = (data['outfitText'] as String? ?? '').trim();
+    if (text.isEmpty) continue;
+    final short = text.length > 220 ? '${text.substring(0, 220)}…' : text;
+    if (data['feedback'] == 'like' && liked.length < 5) {
+      liked.add(short);
+    } else if (data['feedback'] == 'dislike' && disliked.length < 5) {
+      disliked.add(short);
+    }
+  }
+  if (liked.isEmpty && disliked.isEmpty) return '';
+
+  final parts = <String>[];
+  if (liked.isNotEmpty) {
+    parts.add('【ユーザーが過去に👍した提案（傾向を参考にしてよい）】\n${liked.join('\n---\n')}');
+  }
+  if (disliked.isNotEmpty) {
+    parts.add('【ユーザーが過去に👎した提案（同じ系統のアイテム・雰囲気は避ける）】\n${disliked.join('\n---\n')}');
+  }
+  return parts.join('\n\n');
+}
+
 class ClaudeService {
   static const String _proxyUrl = 'https://stylemind-proxy-production.up.railway.app/chat';
   static const String _imageUrl = 'https://stylemind-proxy-production.up.railway.app/generate-image';
@@ -951,7 +990,7 @@ class ClaudeService {
     return null;
   }
 
-  static Future<String> sendMessage(List<ChatMessage> messages, {UserProfile? userProfile, String? closetSummary}) async {
+  static Future<String> sendMessage(List<ChatMessage> messages, {UserProfile? userProfile, String? closetSummary, String? feedbackSummary}) async {
     final List<Map<String, String>> history = messages.map((m) => {
       'role': m.isUser ? 'user' : 'assistant',
       'content': m.text,
@@ -965,6 +1004,7 @@ class ClaudeService {
           'messages': history,
           'userProfile': userProfile?.toMap(),
           'closetSummary': closetSummary ?? '',
+          'feedbackSummary': feedbackSummary ?? '',
         }),
       ).timeout(const Duration(seconds: 30));
 
@@ -1266,8 +1306,7 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   /// コーデ提案への簡単な評価（いいね/いまいち）をFirestoreに記録する。
-  /// 今はまだAI側の改善に使う仕組みはないが、今後の提案精度向上のための
-  /// 実データを貯める第一歩として実装（これまでこの種のデータが一切無かった）。
+  /// getFeedbackSummaryで読み出され、次回以降のチャット提案の personalize に使われる。
   Future<void> _recordFeedback(int index, String outfitText, String feedback) async {
     setState(() => _messages[index].feedback = feedback);
     final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -1689,10 +1728,12 @@ class _ChatScreenState extends State<ChatScreen> {
     await _saveToFirestore(text, true);
 
     final closetSummary = await getClosetSummary();
+    final feedbackSummary = await getFeedbackSummary();
     final reply = await ClaudeService.sendMessage(
       _messages.where((m) => m.isUser || _messages.indexOf(m) > 0).toList(),
       userProfile: widget.userProfile,
       closetSummary: closetSummary,
+      feedbackSummary: feedbackSummary,
     );
 
     setState(() {

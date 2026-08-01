@@ -106,7 +106,8 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ error: 'リクエストの形式が不正です' }));
         return;
       }
-      const { messages, userProfile, closetSummary, _debugStylistMode } = parsedBody;
+      const { messages, userProfile, closetSummary, feedbackSummary, _debugStylistMode } = parsedBody;
+      const feedbackContext = feedbackSummary ? `\n\n${feedbackSummary}` : '';
       // 対話型スタイリスト機能：デフォルトで常時ON。_debugStylistModeを明示的にfalseにした場合のみ
       // 旧来の即答動作に戻せる（切り戻し用の安全弁として残す）
       const stylistDialogueBlock = _debugStylistMode !== false ? `
@@ -262,7 +263,8 @@ ${userProfile?.ngItems ? `\n【最優先の絶対ルール】ユーザーはこ�
 ${stylistDialogueBlock}
 
 【返答ルール】
-- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}${seasonContext}${varietyContext}${avoidRepeatContext}
+- ユーザーのプロフィール・好みを最優先で参考にする${profileContext}${closetContext}${seasonContext}${varietyContext}${avoidRepeatContext}${feedbackContext}
+- 👍👎の過去フィードバックが示されている場合：👎された提案と似た系統（似たブランド・色味・シルエット）は避け、👍された提案の傾向（色味・系統・カジュアル度合い等）はヒントとして活用してよい。ただし👍されたものと全く同じアイテムを毎回繰り返すのは避け、あくまで「好みの方向性」の参考に留めること
 - 【今回の提案の方向性】は、そのリクエストだけに適用する一時的な指定。2つとも、無理に不自然にならない範囲で必ず反映すること
 - 【直近ほかのリクエストで提案したばかりのアイテム】が示されている場合、そこに書かれたアイテムと同じものを繰り返し提案しないこと。同じカテゴリでも違うブランド・アイテムを選ぶこと
 - 【最重要・再確認】NGアイテムが設定されている場合、シーンや文脈（デート・特別な日等）がどんなものであっても例外なく守ること。「この文脈なら定番のあのアイテムを入れたい」という判断よりもNG回避を必ず優先する。靴がNGカテゴリに含まれる場合、具体的なブランド・型番を1つも出さず、該当カテゴリ以外の履物（ローファー・サンダル・ブーツ等）か、言及自体を避けること

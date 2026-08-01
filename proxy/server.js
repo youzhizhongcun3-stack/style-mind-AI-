@@ -588,7 +588,27 @@ ${userProfile?.ngItems ? `\n【最優先の絶対ルール】ユーザーはこ�
       const generateImage = (outfitDesc) => {
           const genderJp = gender === 'メンズ' ? 'Japanese male fashion model' : gender === 'レディース' ? 'Japanese female fashion model' : 'Japanese fashion model';
           // DALL-E 3はブランド名を拒否する場合があるため、視覚的特徴を中心にした英語プロンプトを使用
-          const finalPrompt = `Fashion catalog photography. Pure white background. ${genderJp} standing in center frame. COMPOSITION: full body from top of head to bottom of shoes — head fully visible at top, shoes fully visible at bottom, nothing cropped. Camera at medium distance showing entire figure. Outfit (show ALL items completely, nothing hidden or cropped): ${outfitDesc}. All garments are PLAIN and SOLID-COLORED with no pattern, print, graphic, logo, embroidery, patch, pin, button decoration, or text unless a pattern/print is explicitly named above — do not invent decorative details of any kind. Do NOT add unlisted items. Neutral relaxed standing pose, arms slightly away from body so all items are visible.`;
+          // 構成順（Role→Pose→Location→Lighting→Camera→Style→Clothing→Quality→Avoid）は
+          // 「白背景の証明写真ポーズ」がAIっぽさの最大要因という検証結果に基づく（2026-08-01）
+          const finalPrompt = `Role: You are a professional fashion editorial photographer and art director creating a premium fashion magazine campaign image.
+
+Subject: ${genderJp}, natural relaxed appearance, standing in a candid unposed moment.
+
+Pose: Natural relaxed standing pose, weight shifted onto one leg, slight natural body asymmetry, slight shoulder tilt, looking slightly away from camera rather than straight ahead, soft natural expression, arms positioned naturally so all garments are fully visible, nothing hidden or cropped.
+
+Location: Quiet minimal architectural interior space, soft neutral warm-toned wall, natural window light, subtle natural shadow on the floor — calm and editorial, not a stark white studio backdrop.
+
+Lighting: Soft natural directional light, gentle shadows, subtle warmth, realistic editorial contrast, not flat or harsh.
+
+Camera: Full body shot from top of head to bottom of shoes, nothing cropped, medium distance, 50mm lens look, natural perspective, slight editorial angle, shallow depth of field with soft background blur.
+
+Style: Premium editorial fashion photography in the spirit of COS and MUJI lookbooks — quiet, minimal, natural, photographic realism, not illustration.
+
+Clothing (show ALL items completely, nothing hidden or cropped): ${outfitDesc}. All garments are PLAIN and SOLID-COLORED with no pattern, print, graphic, logo, embroidery, patch, pin, button decoration, or text unless a pattern/print is explicitly named above — do not invent decorative details of any kind. Do NOT add unlisted items.
+
+Quality: High resolution, sharp focus, realistic natural skin texture, professional retouching.
+
+Avoid: cartoon, anime, illustration, oversaturated colors, stiff frontal standing pose, expressionless face, plain stark white studio background, flat even lighting, mismatched proportions, distorted hands or face, low quality.`;
           console.log('Final image prompt:', finalPrompt);
 
           const imagePayload = JSON.stringify({

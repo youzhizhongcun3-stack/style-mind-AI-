@@ -31,6 +31,13 @@ void main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  final app = Firebase.app();
+  debugPrint('Firebase app name: ${app.name}');
+  debugPrint('projectId: ${app.options.projectId}');
+  debugPrint('authDomain: ${app.options.authDomain}');
+  debugPrint('appId: ${app.options.appId}');
+  debugPrint('apiKey: ${app.options.apiKey}');
+  debugPrint('storageBucket: ${app.options.storageBucket}');
   // Web版でもログイン状態を永続化
   await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
   await PurchaseService.init();
@@ -122,6 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _signInWithApple() async {
     setState(() => _isLoading = true);
+    debugPrint('Auth Firebase project: ${FirebaseAuth.instance.app.options.projectId}');
     try {
       if (kIsWeb) {
         await FirebaseAuth.instance.signInWithPopup(OAuthProvider('apple.com'));
@@ -143,6 +151,10 @@ class _LoginScreenState extends State<LoginScreen> {
         await Purchases.logIn(uid);
       }
     } catch (e) {
+      debugPrint('Apple sign-in error: $e');
+      if (e is FirebaseAuthException) {
+        debugPrint('Apple sign-in error code: ${e.code}, message: ${e.message}');
+      }
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -175,6 +187,18 @@ class _LoginScreenState extends State<LoginScreen> {
               const Text(
                 'あなた専属のAIスタイリスト',
                 style: TextStyle(fontSize: 16, color: Colors.white70),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Text(
+                  'トライアル版として先行公開中🚀 ご感想お待ちしています',
+                  style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600),
+                ),
               ),
               const SizedBox(height: 60),
               _isLoading
@@ -1594,9 +1618,6 @@ class _ChatScreenState extends State<ChatScreen> {
   void _showShopLinks(BuildContext context, String messageText) {
     final outfitItems = _parseOutfitItemsForShop(messageText);
 
-    // WEARリンク用キーワード
-    final wearKeyword = Uri.encodeComponent(outfitItems.isNotEmpty ? outfitItems.first['value']! : 'コーデ');
-
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1675,19 +1696,6 @@ class _ChatScreenState extends State<ChatScreen> {
                   );
                 }),
               const SizedBox(height: 8),
-              ListTile(
-                leading: const Text('📸', style: TextStyle(fontSize: 20)),
-                title: const Text('WEAR（コーデ参考）', style: TextStyle(fontSize: 14)),
-                trailing: const Icon(Icons.open_in_new, size: 16, color: Color(0xFF7FD6C2)),
-                onTap: () async {
-                  final uri = Uri.parse('https://wear.jp/search/?q=$wearKeyword');
-                  try {
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  } catch (_) {
-                    await launchUrl(uri, mode: LaunchMode.platformDefault);
-                  }
-                },
-              ),
               const SizedBox(height: 20),
             ],
           ),

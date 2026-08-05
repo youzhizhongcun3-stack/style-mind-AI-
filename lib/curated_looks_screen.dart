@@ -84,7 +84,15 @@ class _CuratedLooksScreenState extends State<CuratedLooksScreen> {
   Future<void> _load() async {
     try {
       final snap = await _looksCollection.orderBy('createdAt', descending: true).get();
-      final looks = snap.docs.map(CuratedLook.fromDoc).toList();
+      var looks = snap.docs.map(CuratedLook.fromDoc).toList();
+
+      // プロフィールの性別が設定されている場合は、その性別（または未設定）の
+      // コーデのみを表示する。以前はスコア加点のみだったため異性のコーデが
+      // 混ざって表示されることがあった（テスターFBで指摘）
+      if (widget.userProfile.gender.isNotEmpty) {
+        final genderFiltered = looks.where((l) => l.gender.isEmpty || l.gender == widget.userProfile.gender).toList();
+        if (genderFiltered.isNotEmpty) looks = genderFiltered;
+      }
 
       // 「今週人気」：いいね数上位3件（1件もいいねが無ければバッジは出さない）
       final likedSorted = looks.where((l) => l.likeCount > 0).toList()

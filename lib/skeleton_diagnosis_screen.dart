@@ -75,9 +75,39 @@ class _SkeletonDiagnosisScreenState extends State<SkeletonDiagnosisScreen> {
   bool _showResult = false;
   String _resultType = '';
 
-  void _answer(String type) {
+  // 複数選択対応：現在の質問で選んでいる選択肢のインデックス（「わからない」は
+  // 他の選択肢と同時に選べないよう、選んだ時点で他をクリアする）
+  final Set<int> _selectedIndexes = {};
+  static const int _dontKnowIndex = -1;
+
+  void _toggleOption(int index) {
     setState(() {
-      _scores[type] = (_scores[type] ?? 0) + 1;
+      if (index == _dontKnowIndex) {
+        _selectedIndexes
+          ..clear()
+          ..add(_dontKnowIndex);
+      } else {
+        _selectedIndexes.remove(_dontKnowIndex);
+        if (_selectedIndexes.contains(index)) {
+          _selectedIndexes.remove(index);
+        } else {
+          _selectedIndexes.add(index);
+        }
+      }
+    });
+  }
+
+  void _confirmStep() {
+    setState(() {
+      // 「わからない」を選んだ場合はどのタイプにも加点せず次へ進む
+      if (!_selectedIndexes.contains(_dontKnowIndex)) {
+        final q = _questions[_step];
+        for (final index in _selectedIndexes) {
+          final type = q.options[index].type;
+          _scores[type] = (_scores[type] ?? 0) + 1;
+        }
+      }
+      _selectedIndexes.clear();
       if (_step < _questions.length - 1) {
         _step++;
       } else {
@@ -131,25 +161,77 @@ class _SkeletonDiagnosisScreenState extends State<SkeletonDiagnosisScreen> {
             Text('Q${_step + 1}', style: const TextStyle(color: Color(0xFF7FD6C2), fontWeight: FontWeight.bold, fontSize: 14)),
             const SizedBox(height: 8),
             Text(q.text, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 32),
+            const SizedBox(height: 4),
+            const Text('当てはまるものを複数選んでもOKです', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 24),
             Expanded(
               child: ListView(
-                children: q.options.map((o) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => _answer(o.type),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
-                        side: BorderSide(color: Colors.grey.shade300),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        alignment: Alignment.centerLeft,
+                children: [
+                  ...q.options.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final o = entry.value;
+                    final selected = _selectedIndexes.contains(index);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _toggleOption(index),
+                          icon: Icon(
+                            selected ? Icons.check_circle : Icons.circle_outlined,
+                            color: selected ? const Color(0xFF7FD6C2) : Colors.grey.shade400,
+                            size: 20,
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                            side: BorderSide(color: selected ? const Color(0xFF7FD6C2) : Colors.grey.shade300, width: selected ? 2 : 1),
+                            backgroundColor: selected ? const Color(0xFF7FD6C2).withOpacity(0.06) : null,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            alignment: Alignment.centerLeft,
+                          ),
+                          label: Text(o.label, style: const TextStyle(fontSize: 15, color: Colors.black87), textAlign: TextAlign.left),
+                        ),
                       ),
-                      child: Text(o.label, style: const TextStyle(fontSize: 15, color: Colors.black87), textAlign: TextAlign.left),
+                    );
+                  }),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _toggleOption(_dontKnowIndex),
+                        icon: Icon(
+                          _selectedIndexes.contains(_dontKnowIndex) ? Icons.check_circle : Icons.circle_outlined,
+                          color: _selectedIndexes.contains(_dontKnowIndex) ? Colors.grey.shade600 : Colors.grey.shade400,
+                          size: 20,
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+                          side: BorderSide(color: Colors.grey.shade300),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          alignment: Alignment.centerLeft,
+                        ),
+                        label: const Text('わからない', style: TextStyle(fontSize: 15, color: Colors.grey)),
+                      ),
                     ),
                   ),
-                )).toList(),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _selectedIndexes.isEmpty ? null : _confirmStep,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF7FD6C2),
+                  disabledBackgroundColor: Colors.grey.shade300,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                ),
+                child: Text(
+                  _step < _questions.length - 1 ? '次へ' : '結果を見る',
+                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                ),
               ),
             ),
           ],

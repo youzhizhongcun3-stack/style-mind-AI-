@@ -38,8 +38,16 @@ void main() async {
   debugPrint('appId: ${app.options.appId}');
   debugPrint('apiKey: ${app.options.apiKey}');
   debugPrint('storageBucket: ${app.options.storageBucket}');
-  // Web版でもログイン状態を永続化
-  await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+  // setPersistenceはWeb版専用のAPI。ネイティブ（iOS/Android）では未対応のため
+  // 呼び出すと例外になる可能性があり、ここでmain()全体が止まって画面が一切
+  // 描画されない（白画面）原因になり得るため、Web限定で呼び出す
+  if (kIsWeb) {
+    try {
+      await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+    } catch (e) {
+      debugPrint('setPersistence failed: $e');
+    }
+  }
   await PurchaseService.init();
   runApp(const StyleMindApp());
 }
@@ -2050,7 +2058,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
+                        SelectableText(
                           msg.text,
                           style: TextStyle(
                             color: msg.isUser ? Colors.white : Colors.black87,

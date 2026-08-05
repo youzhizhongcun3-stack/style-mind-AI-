@@ -28,10 +28,15 @@ class PurchaseService {
       final apiKey = defaultTargetPlatform == TargetPlatform.iOS
           ? _iosApiKey
           : _androidApiKey;
-      await Purchases.configure(PurchasesConfiguration(apiKey));
+      // main()がこのinit()の完了を待ってからrunApp()するため、SDK内部の
+      // 処理が万一応答しない場合に備えてタイムアウトを設ける（iPadでの
+      // 白画面バグの仮説の一つ：ここが無限に待ち続けるとアプリが一切
+      // 描画されない状態になり得るため）
+      await Purchases.configure(PurchasesConfiguration(apiKey))
+          .timeout(const Duration(seconds: 8));
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null) {
-        await Purchases.logIn(uid);
+        await Purchases.logIn(uid).timeout(const Duration(seconds: 8));
       }
     } catch (e) {
       debugPrint('PurchaseService.init failed: $e');

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -100,23 +101,63 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
+  String? _errorMessage;
+  VoidCallback? _lastAttempt;
+
+  static const _signInTimeout = Duration(seconds: 10);
+
+  /// FirebaseAuthの例外コードを、ユーザーが読んで意味の分かる日本語メッセージに変換する。
+  /// 生の例外テキストをそのまま出すと原因が伝わらず「もう一度試す」以外の
+  /// 判断ができないため、代表的なケースだけでも個別に案内する。
+  String _friendlyAuthError(Object e) {
+    if (e is TimeoutException) {
+      return '時間がかかりすぎたため中断しました。もう一度お試しください。';
+    }
+    if (e is SignInWithAppleAuthorizationException) {
+      if (e.code == AuthorizationErrorCode.canceled) {
+        return 'ログインがキャンセルされました。';
+      }
+      return 'ログインに失敗しました。もう一度お試しください。';
+    }
+    if (e is FirebaseAuthException) {
+      switch (e.code) {
+        case 'popup-closed-by-user':
+        case 'cancelled-popup-request':
+        case 'user-cancelled':
+          return 'ログインがキャンセルされました。';
+        case 'popup-blocked':
+          return 'ポップアップがブロックされました。ブラウザのアドレスバー付近に出るブロック解除アイコンから許可するか、設定でポップアップを許可してからもう一度お試しください。';
+        case 'network-request-failed':
+          return '通信エラーが発生しました。電波状況を確認してもう一度お試しください。';
+        default:
+          return 'ログインに失敗しました。もう一度お試しください。';
+      }
+    }
+    return 'ログインに失敗しました。もう一度お試しください。';
+  }
 
   Future<void> _signInWithGoogle() async {
-    setState(() => _isLoading = true);
+    if (_isLoading) return; // 二重クリック・重複認証を防止
+    _lastAttempt = _signInWithGoogle;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       final provider = GoogleAuthProvider();
-      await FirebaseAuth.instance.signInWithPopup(provider);
+      await FirebaseAuth.instance.signInWithPopup(provider).timeout(_signInTimeout);
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null && PurchaseService.isPurchaseSupported) {
-        await Purchases.logIn(uid);
+        await Purchases.logIn(uid).timeout(_signInTimeout);
       }
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ログインに失敗しました: $e')),
-        );
-      }
+      debugPrint('Google sign-in error: $e');
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = _friendlyAuthError(e);
+      });
     }
   }
 
@@ -136,39 +177,43 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _signInWithApple() async {
-    setState(() => _isLoading = true);
-    debugPrint('Auth Firebase project: ${FirebaseAuth.instance.app.options.projectId}');
+    if (_isLoading) return; // 二重クリック・重複認証を防止
+    _lastAttempt = _signInWithApple;
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
     try {
       if (kIsWeb) {
-        await FirebaseAuth.instance.signInWithPopup(OAuthProvider('apple.com'));
+        await FirebaseAuth.instance.signInWithPopup(OAuthProvider('apple.com')).timeout(_signInTimeout);
       } else {
         final rawNonce = _generateNonce();
         final nonce = _sha256ofString(rawNonce);
         final appleCredential = await SignInWithApple.getAppleIDCredential(
           scopes: [AppleIDAuthorizationScopes.email, AppleIDAuthorizationScopes.fullName],
           nonce: nonce,
-        );
+        ).timeout(_signInTimeout);
         final oauthCredential = OAuthProvider('apple.com').credential(
           idToken: appleCredential.identityToken,
           rawNonce: rawNonce,
         );
-        await FirebaseAuth.instance.signInWithCredential(oauthCredential);
+        await FirebaseAuth.instance.signInWithCredential(oauthCredential).timeout(_signInTimeout);
       }
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid != null && PurchaseService.isPurchaseSupported) {
-        await Purchases.logIn(uid);
+        await Purchases.logIn(uid).timeout(_signInTimeout);
       }
+      if (mounted) setState(() => _isLoading = false);
     } catch (e) {
       debugPrint('Apple sign-in error: $e');
       if (e is FirebaseAuthException) {
         debugPrint('Apple sign-in error code: ${e.code}, message: ${e.message}');
       }
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('ログインに失敗しました: $e')),
-        );
-      }
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _errorMessage = _friendlyAuthError(e);
+      });
     }
   }
 
@@ -209,6 +254,34 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 60),
+              if (_errorMessage != null && !_isLoading) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                  margin: const EdgeInsets.only(bottom: 20),
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                      ),
+                      if (_lastAttempt != null) ...[
+                        const SizedBox(height: 10),
+                        TextButton(
+                          onPressed: () => _lastAttempt?.call(),
+                          style: TextButton.styleFrom(foregroundColor: Colors.white),
+                          child: const Text('もう一度試す', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
               _isLoading
                   ? const CircularProgressIndicator(color: Colors.white)
                   : Column(

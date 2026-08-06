@@ -106,6 +106,30 @@ class _LoginScreenState extends State<LoginScreen> {
 
   static const _signInTimeout = Duration(seconds: 10);
 
+  void _showTrialInfoDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('StyleMind AI トライアル版について'),
+        content: const SingleChildScrollView(
+          child: Text(
+            '現在、StyleMind AIは正式公開前の先行トライアル版です。AIによるコーデ相談、ファッション診断、コーデ画像生成、保存機能などをお試しいただけます。\n\n'
+            '無料プランでは、コーデ画像を合計5回まで生成できます。上限到達後も、利用可能な無料機能は引き続きご利用いただけます。\n\n'
+            'トライアル版への登録だけで料金が発生することはありません。有料プランは、ご自身で購入手続きを完了した場合にのみ開始されます。\n\n'
+            '開発中のため、表示やAIの提案内容が変更される場合があります。皆さまの評価やご意見を、品質改善に活用します。',
+            style: TextStyle(fontSize: 13, height: 1.6),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// FirebaseAuthの例外コードを、ユーザーが読んで意味の分かる日本語メッセージに変換する。
   /// 生の例外テキストをそのまま出すと原因が伝わらず「もう一度試す」以外の
   /// 判断ができないため、代表的なケースだけでも個別に案内する。
@@ -242,15 +266,27 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(fontSize: 16, color: Colors.white70),
               ),
               const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: const Text(
-                  'トライアル版として先行公開中🚀 ご感想お待ちしています',
-                  style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600),
+              GestureDetector(
+                onTap: () => _showTrialInfoDialog(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '先行トライアル版として公開中🚀 無料でお試しいただけます',
+                          style: TextStyle(fontSize: 13, color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      SizedBox(width: 4),
+                      Icon(Icons.info_outline, size: 15, color: Colors.white),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 60),
@@ -1018,6 +1054,11 @@ class _PaywallCardState extends State<_PaywallCard> {
                     )
                   : const Text('有料プランにアップグレード'),
             ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '登録だけで自動的に有料プランへ移行することはありません。',
+            style: TextStyle(color: Colors.white70, fontSize: 11),
           ),
         ],
       ),

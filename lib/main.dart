@@ -1031,7 +1031,91 @@ class ChatMessage {
   final String? imageUrl;
   final String? failedOutfitText; // 画像生成が失敗した場合、リトライ用に元のコーデ内容を保持
   String? feedback; // 'like' or 'dislike'（ユーザーがこの提案をどう感じたかの簡易フィードバック）
-  ChatMessage({required this.text, required this.isUser, this.imageUrl, this.failedOutfitText, this.feedback});
+  String? logId; // ai_decision_logsのドキュメントID（AI判断ログ機能用。コーデ提案メッセージのみ持つ）
+  ChatMessage({required this.text, required this.isUser, this.imageUrl, this.failedOutfitText, this.feedback, this.logId});
+}
+
+/// AI判断ログ（Phase 1：入力・出力・ユーザー結果の記録）。
+/// 「どんな入力に対してAIが何を提案し、ユーザーがどう反応したか」を1レコードで
+/// 追跡できるようにし、今後のAI品質改善の分析基盤にする。
+class AiDecisionLogService {
+  static CollectionReference<Map<String, dynamic>>? _collection() {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return null;
+    return FirebaseFirestore.instance.collection('users').doc(uid).collection('ai_decision_logs');
+  }
+
+  /// AIの返答が届いた時点で、入力・出力を記録した新しいログを作成し、そのIDを返す。
+  /// 戻り値がnull＝未ログイン等で記録できなかった場合（呼び出し側は無視してよい）。
+  static Future<String?> logSuggestion({
+    required UserProfile userProfile,
+    required String userMessage,
+    required String aiReply,
+  }) async {
+    final col = _collection();
+    if (col == null) return null;
+    try {
+      final doc = await col.add({
+        'input': {
+          'age': userProfile.age,
+          'gender': userProfile.gender,
+          'skeletonType': userProfile.skeletonType,
+          'styles': userProfile.styles,
+          'budget': userProfile.budget,
+          'message': userMessage,
+          'season': _currentSeasonLabel(),
+        },
+        'output': {
+          'proposalText': aiReply,
+          'imagePrompt': null,
+        },
+        'result': {
+          'feedback': null,
+          'saved': false,
+          'shared': false,
+          'productClicked': <String>[],
+        },
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      return doc.id;
+    } catch (e) {
+      debugPrint('AiDecisionLogService.logSuggestion failed: $e');
+      return null;
+    }
+  }
+
+  static Future<void> _update(String? logId, Map<String, dynamic> data) async {
+    if (logId == null) return;
+    final col = _collection();
+    if (col == null) return;
+    try {
+      await col.doc(logId).update({...data, 'updatedAt': FieldValue.serverTimestamp()});
+    } catch (e) {
+      debugPrint('AiDecisionLogService update failed: $e');
+    }
+  }
+
+  static Future<void> recordImagePrompt(String? logId, String imagePrompt) =>
+      _update(logId, {'output.imagePrompt': imagePrompt});
+
+  static Future<void> recordFeedback(String? logId, String feedback) =>
+      _update(logId, {'result.feedback': feedback});
+
+  static Future<void> recordSaved(String? logId) => _update(logId, {'result.saved': true});
+
+  static Future<void> recordShared(String? logId) => _update(logId, {'result.shared': true});
+
+  static Future<void> recordProductClicked(String? logId, String itemLabel) =>
+      _update(logId, {'result.productClicked': FieldValue.arrayUnion([itemLabel])});
+
+  static String _currentSeasonLabel() {
+    final month = DateTime.now().month;
+    if (month >= 3 && month <= 5) return '春';
+    if (month >= 6 && month <= 8) return '夏';
+    if (month >= 9 && month <= 11) return '秋';
+    return '冬';
+  }
 }
 
 /// 過去のコーデ提案への👍👎フィードバックから、次のチャット提案をpersonalizeするための
@@ -1181,6 +1265,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _isLoading = false;
   String? _lastOutfitReply;
+  String? _lastLogId; // 直近のAI提案に対応するai_decision_logsのドキュメントID
   String? _selectedScene;
   int? _remainingFree;
   bool _premium = false;
@@ -1413,6 +1498,7 @@ class _ChatScreenState extends State<ChatScreen> {
   /// コーデ提案への簡単な評価（いいね/いまいち）をFirestoreに記録する。
   /// getFeedbackSummaryで読み出され、次回以降のチャット提案の personalize に使われる。
   Future<void> _recordFeedback(int index, String outfitText, String feedback) async {
+    final logId = _messages[index].logId ?? _lastLogId;
     setState(() => _messages[index].feedback = feedback);
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -1427,6 +1513,7 @@ class _ChatScreenState extends State<ChatScreen> {
       'styles': widget.userProfile.styles,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    await AiDecisionLogService.recordFeedback(logId, feedback);
   }
 
   /// コーデ提案メッセージの下に表示する、いいね/いまいちボタン。
@@ -1484,6 +1571,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       );
     }
+    await AiDecisionLogService.recordSaved(_lastLogId);
     ReviewService.maybeRequestReview();
   }
 
@@ -1502,6 +1590,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('画像を長押しして保存してください'), backgroundColor: Color(0xFF7FD6C2)),
         );
+        await AiDecisionLogService.recordShared(_lastLogId);
         return;
       }
 
@@ -1512,6 +1601,7 @@ class _ChatScreenState extends State<ChatScreen> {
         [XFile(file.path, mimeType: 'image/png')],
         text: 'StyleMind AIが提案したコーデです👗',
       );
+      await AiDecisionLogService.recordShared(_lastLogId);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1770,6 +1860,7 @@ class _ChatScreenState extends State<ChatScreen> {
                             } catch (_) {
                               await launchUrl(uri, mode: LaunchMode.platformDefault);
                             }
+                            await AiDecisionLogService.recordProductClicked(_lastLogId, item['value']!);
                           },
                         )),
                       ],
@@ -1853,6 +1944,18 @@ class _ChatScreenState extends State<ChatScreen> {
       // 無関係なアドバイスが表示されるとの指摘を受け廃止。system prompt側で
       // 提案理由・スタイリングポイントを本文に含めるよう既に指示しているため、
       // 別枠での汎用Tips表示は行わない。
+
+      // AI判断ログ（Phase 1）：入力・出力を記録する。結果（👍👎・保存・シェア・
+      // 商品クリック）は各アクション発生時に同じレコードを更新する
+      final logId = await AiDecisionLogService.logSuggestion(
+        userProfile: widget.userProfile,
+        userMessage: text,
+        aiReply: reply,
+      );
+      _lastLogId = logId;
+      if (logId != null && lastIndex < _messages.length) {
+        _messages[lastIndex].logId = logId;
+      }
     }
 
     // 画像生成はユーザーが明示的に依頼した場合のみ
@@ -1919,12 +2022,13 @@ class _ChatScreenState extends State<ChatScreen> {
     if (imageUrl != null) {
       await PurchaseService.recordGenerationUsed();
       await _refreshFreeStatus();
+      await AiDecisionLogService.recordImagePrompt(_lastLogId, outfitText);
     }
 
     setState(() {
       _isLoading = false;
       if (imageUrl != null) {
-        _messages.last = ChatMessage(text: '👗 提案コーデのイメージ', isUser: false, imageUrl: imageUrl);
+        _messages.last = ChatMessage(text: '👗 提案コーデのイメージ', isUser: false, imageUrl: imageUrl, logId: _lastLogId);
         _saveToFirestore('👗 提案コーデのイメージ', false, imageUrl: imageUrl);
       } else {
         _messages.last = ChatMessage(

@@ -1478,7 +1478,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     try {
       final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-      for (final sub in ['messages', 'saved_coordinates', 'closet']) {
+      for (final sub in ['messages', 'saved_coordinates', 'closet', 'ai_decision_logs', 'coordinate_feedback']) {
         final docs = await userRef.collection(sub).get();
         for (final d in docs.docs) {
           await d.reference.delete();
@@ -1490,7 +1490,14 @@ class _ChatScreenState extends State<ChatScreen> {
         await user.delete();
       } on FirebaseAuthException catch (e) {
         if (e.code == 'requires-recent-login') {
-          await user.reauthenticateWithProvider(GoogleAuthProvider());
+          // ログイン方法に応じて再認証プロバイダを切り替える（Appleでログインした
+          // ユーザーにGoogleAuthProviderを使うと再認証自体が失敗するため）
+          final providerId = user.providerData.isNotEmpty ? user.providerData.first.providerId : '';
+          if (providerId == 'apple.com') {
+            await user.reauthenticateWithProvider(AppleAuthProvider());
+          } else {
+            await user.reauthenticateWithProvider(GoogleAuthProvider());
+          }
           await user.delete();
         } else {
           rethrow;
